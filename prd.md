@@ -149,12 +149,17 @@
 
 #### MVP 기능 (Week 1-3)
 - ✅ Google OAuth 로그인
-- ✅ 캐릭터 선택 (3종)
-- ✅ 대화 선택지 시스템
+- ✅ 사용자 MBTI 입력 (온보딩 + 마이페이지)
+- ✅ 연애 대상자 커스터마이징 (성별, 스타일, MBTI, 그림체)
+- ✅ 캐릭터 표정 사전 생성 (6종)
+- ✅ MBTI 기반 대화 선택지 시스템
 - ✅ 호감도 게이지
 - ✅ AI 이미지 생성 (Gemini)
+- ✅ 특별 이벤트 (서비스 컷 + blur/원본)
+- ✅ 미니게임: 눈 마주치기 (로딩 중)
 - ✅ HAPPY/SAD 엔딩 (2종)
 - ✅ 세이브/로드 기능
+- ✅ 마이페이지
 
 ### 4.2 상세 기능 명세
 
@@ -172,25 +177,81 @@ Acceptance Criteria:
 - 로그아웃 기능 제공
 ```
 
-#### 4.2.2 캐릭터 선택
+#### 4.2.2 사용자 MBTI 설정
 ```
-Feature: 연애 대상 캐릭터 선택
+Feature: 사용자 MBTI 입력 및 관리
 As a 사용자
-I want to 3가지 캐릭터 타입 중 선택
-So that 원하는 스타일의 연애를 경험할 수 있다
+I want to 내 MBTI를 입력하고 관리할
+So that 내 성향에 맞는 선택지 스타일을 받을 수 있다
 
-Character Types (MVP):
-1. 츤데레형 (Tsundere): 차가운 듯 따뜻한
-2. 쿨뷰티형 (Cool): 냉정하고 이성적
-3. 귀여움형 (Cute): 밝고 애교 많은
+Flow:
+1. 첫 로그인 시 MBTI 입력 (온보딩)
+2. 마이페이지에서 언제든 수정 가능
+
+MBTI 활용:
+- AI가 선택지 생성 시 사용자 MBTI에 맞는 표현 스타일 적용
+- 예: ENFP → 감정적/열정적 표현
+- 예: ISTJ → 논리적/실용적 표현
 
 Acceptance Criteria:
-- 각 캐릭터 설명 및 샘플 이미지 제공
-- 선택시 게임 즉시 시작
-- 선택 변경시 새 게임으로 초기화
+- 첫 로그인 시 MBTI 선택 화면 표시
+- 16가지 MBTI 타입 선택 가능
+- 마이페이지에서 수정 가능
+- MBTI 미입력 시 기본값 적용
 ```
 
-#### 4.2.3 호감도 시스템
+#### 4.2.3 연애 대상자 커스터마이징
+```
+Feature: 연애 대상자 설정
+As a 사용자
+I want to 연애 대상자의 특성을 직접 선택할
+So that 원하는 이상형과 연애를 경험할 수 있다
+
+커스터마이징 옵션:
+1. 성별: 남성 / 여성
+2. 스타일: 츤데레, 쿨뷰티, 귀여움, 섹시, 청순 등
+3. MBTI: 16가지 타입
+4. 그림체: 애니메이션, 실사풍, 수채화 등
+
+DB 저장 및 활용:
+- 선택한 설정을 DB에 저장
+- AI API 호출마다 해당 정보를 전달하여 말투에 반영
+
+Acceptance Criteria:
+- 각 옵션별 선택 UI 제공
+- 선택 완료 시 DB 저장
+- AI 응답에 설정이 일관되게 반영
+```
+
+#### 4.2.4 캐릭터 표정 시스템
+```
+Feature: 기본 표정 이미지 사전 생성
+As a 시스템
+I want to 캐릭터 선택 완료 시 6가지 기본 표정을 미리 생성할
+So that 게임 중 빠르게 표정을 전환할 수 있다
+
+기본 표정 (6종):
+1. 일반 표정 (neutral)
+2. 기쁜 표정 (happy)
+3. 슬픈 표정 (sad)
+4. 질투 표정 (jealous)
+5. 부끄러운 표정 (shy)
+6. 흥분 표정 (excited)
+
+Flow:
+1. 사용자가 연애 대상자 설정 완료
+2. AI API로 6개 표정 이미지 생성 요청
+3. 생성된 이미지 DB에 저장
+4. 게임 중 상황에 맞는 표정 선택하여 표시
+
+Acceptance Criteria:
+- 설정 완료 시 6개 이미지 비동기 생성
+- 생성 중 로딩 UI 표시
+- DB에 캐릭터별 표정 이미지 URL 저장
+- 상황에 따라 적절한 표정 자동 선택
+```
+
+#### 4.2.5 호감도 시스템
 ```
 Feature: 호감도 기반 게임 진행
 As a 사용자
@@ -215,7 +276,7 @@ Acceptance Criteria:
 - 엔딩 조건 정확히 트리거
 ```
 
-#### 4.2.4 AI 이미지 생성
+#### 4.2.6 AI 이미지 생성
 ```
 Feature: 상황별 배경 이미지 자동 생성
 As a 사용자
@@ -240,7 +301,7 @@ Acceptance Criteria:
 - 캐시 히트시 1초 이내 로드
 ```
 
-#### 4.2.5 대화 선택지 시스템
+#### 4.2.7 대화 선택지 시스템
 ```
 Feature: 3지선다 대화 선택
 As a 사용자
@@ -264,7 +325,7 @@ Acceptance Criteria:
 - 선택 이력 DB 저장
 ```
 
-#### 4.2.6 엔딩 시스템
+#### 4.2.8 엔딩 시스템
 ```
 Feature: HAPPY/SAD 엔딩 연출
 As a 사용자
@@ -288,7 +349,7 @@ Acceptance Criteria:
 - 다시 시작시 초기 화면 이동
 ```
 
-#### 4.2.7 세이브/로드 기능
+#### 4.2.9 세이브/로드 기능
 ```
 Feature: 게임 진행 상황 저장
 As a 사용자
@@ -311,6 +372,78 @@ Acceptance Criteria:
 - 게임 삭제 기능 제공
 ```
 
+#### 4.2.10 특별 이벤트 시스템
+```
+Feature: 랜덤 특별 이벤트 (서비스 컷)
+As a 사용자
+I want to 가끔 특별한 이벤트가 발생할
+So that 게임에 더 몰입하고 기대감을 가질 수 있다
+
+이벤트 발생:
+- 매 턴마다 일정 확률 (예: 10-15%)로 특별 이벤트 발생
+- 야한 서비스 컷 이미지 AI 생성
+
+유료화 모델:
+- 일반 고객: 서비스 컷 blur 처리 (흐리게)
+- 결제 고객: 원본 이미지 전체 공개
+
+이미지 생성:
+- 특별 이벤트 발생 시 AI API로 서비스 컷 생성
+- 생성 중 미니게임 표시 (로딩 대기)
+
+Acceptance Criteria:
+- 턴마다 랜덤 확률로 이벤트 트리거
+- 이미지 생성 중 미니게임 표시
+- 일반/결제 고객 구분하여 blur 처리
+- 결제 상태 DB에서 확인
+```
+
+#### 4.2.11 미니게임: 눈 마주치기
+```
+Feature: 설레는 타이밍에 눈 마주치기 게임
+As a 사용자
+I want to 이미지 로딩 중 미니게임을 플레이할
+So that 대기 시간이 지루하지 않고 보상도 받을 수 있다
+
+게임 방식:
+- 게이지가 좌우로 움직임
+- 정확한 타이밍에 터치/클릭하여 "눈 마주치기"
+- 정확도에 따라 등급 부여:
+  - Perfect: 정중앙 (보너스 호감도 +3)
+  - Great: 근접 (보너스 호감도 +1)
+  - Miss: 실패 (보너스 없음)
+
+UI 구성:
+- 캐릭터 눈 이미지 중앙 배치
+- 하트 모양 게이지 좌우 이동
+- 터치 시 결과 애니메이션
+
+Acceptance Criteria:
+- 이미지 로딩 시 자동 시작
+- 게이지 속도 조절 가능 (난이도)
+- 결과에 따른 보너스 호감도 적용
+- 로딩 완료 시 자동 종료 및 결과 표시
+```
+
+#### 4.2.12 마이페이지
+```
+Feature: 사용자 설정 관리
+As a 사용자
+I want to 내 정보와 설정을 관리할
+So that 언제든 내 MBTI나 기타 설정을 변경할 수 있다
+
+기능:
+- MBTI 수정
+- 결제 상태 확인
+- 게임 통계 (플레이 횟수, 엔딩 달성률)
+- 계정 설정 (로그아웃, 탈퇴)
+
+Acceptance Criteria:
+- MBTI 변경 즉시 반영
+- 결제 상태 실시간 표시
+- 통계 데이터 정확히 표시
+```
+
 ### 4.3 사용자 플로우
 
 ```
@@ -323,41 +456,72 @@ Acceptance Criteria:
 │ Google 로그인│
 └──────┬──────┘
        │
+       ▼ (첫 로그인 시)
+┌─────────────┐
+│ MBTI 입력    │ ←── 온보딩
+│ (16가지)    │
+└──────┬──────┘
+       │
        ▼
 ┌─────────────┐     ┌──────────────┐
 │ 게임 선택    │────▶│  새 게임     │
 │ (메인 메뉴) │     │  이어하기    │
+│             │     │  마이페이지  │
 └──────┬──────┘     └──────┬───────┘
        │                    │
-       │                    ▼
-       │            ┌─────────────┐
-       │            │캐릭터 선택  │
-       │            └──────┬──────┘
-       │                   │
-       └───────────────────┤
-                           ▼
-                   ┌─────────────┐
-                   │  게임 플레이 │◀─┐
-                   │  - 이미지    │  │
-                   │  - 대사      │  │
-                   │  - 선택지    │  │
-                   └──────┬──────┘  │
-                          │         │
-                    [선택]│         │
-                          └─────────┘
-                          │
-                    [엔딩 조건]
-                          │
-                          ▼
-                   ┌─────────────┐
-                   │  엔딩 화면   │
-                   │ HAPPY / SAD  │
-                   └──────┬──────┘
-                          │
-                    [다시 시작]
-                          │
-                          ▼
-                   메인 메뉴로 복귀
+       │                    ▼ (새 게임)
+       │          ┌──────────────────┐
+       │          │ 연애 대상자 설정   │
+       │          │ - 성별            │
+       │          │ - 스타일          │
+       │          │ - MBTI            │
+       │          │ - 그림체          │
+       │          └──────┬───────────┘
+       │                 │
+       │                 ▼
+       │          ┌──────────────────┐
+       │          │ 표정 이미지 생성   │
+       │          │ (6종 사전 생성)   │
+       │          │ + 미니게임 대기   │
+       │          └──────┬───────────┘
+       │                 │
+       └─────────────────┤
+                         ▼
+                 ┌─────────────┐
+                 │  게임 플레이 │◀─────────┐
+                 │  - 표정 이미지│          │
+                 │  - 대사      │          │
+                 │  - 선택지    │          │
+                 └──────┬──────┘          │
+                        │                  │
+                  [선택]│                  │
+                        ▼                  │
+                 ┌─────────────┐           │
+                 │ 랜덤 확률    │           │
+                 │ 특별 이벤트? │           │
+                 └──────┬──────┘           │
+                   YES  │  NO              │
+            ┌───────────┴───────┐          │
+            ▼                   │          │
+     ┌─────────────┐            │          │
+     │ 서비스 컷    │            │          │
+     │ + 미니게임   │            │          │
+     │ (blur/원본) │            │          │
+     └──────┬──────┘            │          │
+            └───────────────────┴──────────┘
+                        │
+                  [엔딩 조건]
+                        │
+                        ▼
+                 ┌─────────────┐
+                 │  엔딩 화면   │
+                 │ HAPPY / SAD  │
+                 └──────┬──────┘
+                        │
+                  [다시 시작]
+                        │
+                        ▼
+                 메인 메뉴로 복귀
 ```
 
 ### 4.4 UI/UX 가이드라인
@@ -439,87 +603,105 @@ Text:      #2C3E50 (다크 그레이)
 #### Entity Relationship Diagram (ERD)
 
 ```
-┌──────────────┐
-│    users     │ 1 ────── N ┌─────────────────┐
-│──────────────│            │ user_preferences│
-│ id (PK)      │            │─────────────────│
-│ google_id    │            │ id (PK)         │
-│ email        │            │ user_id (FK)    │
-└──────┬───────┘            └─────────────────┘
+┌──────────────────────┐
+│       users          │
+│──────────────────────│
+│ id (PK)              │
+│ google_id            │
+│ email                │
+│ mbti                 │ ◀── 사용자 MBTI (16가지)
+│ is_premium           │ ◀── 결제 상태
+│ created_at           │
+└──────┬───────────────┘
        │ 1
        │
        │ N
-┌──────┴──────────────┐
-│  game_sessions      │
-│─────────────────────│
-│ id (PK)             │
-│ user_id (FK)        │──────┐
-│ character_id (FK)   │◀──┐  │
-│ affection           │   │  │ 1
-│ current_scene       │   │  │
-│ status              │   │  │
-└──────┬──────────────┘   │  │ N
-       │ 1                │  ├──────────────────┐
-       │                  │  │  ending_stats    │
-       │ N                │  │──────────────────│
-┌──────┴────────┐         │  │ id (PK)          │
-│ scenes        │         │  │ session_id (FK)  │
-│───────────────│         │  │ ending_type      │
-│ id (PK)       │         │  └──────────────────┘
-│ session_id(FK)│         │
-│ scene_number  │         │ N
-│ image_url     │   ┌─────┴────────────┐
-│ dialogue_text │   │   characters     │
-│ generated_at  │   │──────────────────│
-└───────┬───────┘   │ id (PK)          │
-        │ 1         │ name             │
-        │           │ type             │
-        │ N         │ personality      │
-┌───────┴──────────────┐ base_affection│
-│ dialogue_history     │ avatar_prompt │
-│──────────────────────│ created_at    │
-│ id (PK)              │ └──────────────┘
-│ scene_id (FK)        │        │
-│ choice_template_id(FK│◀───┐   │ 1
-│ choice_text          │    │   │
-│ affection_delta      │    │   │ N
-│ selected_at          │    │ ┌─┴──────────────────┐
-└──────────────────────┘    │ │ai_generated_content│
-                            │ │────────────────────│
-                            │ │ id (PK)            │
-                            │ │ character_id (FK)  │
-                            │ │ prompt_hash        │
-                            └─│ content_type       │
-                              │ content_data       │
-                        ┌─────│ cache_hit_count    │
-                        │     │ created_at         │
-                        │     └────────────────────┘
-                        │ N
-                  ┌─────┴────────────┐
-                  │ choice_templates │
-                  │──────────────────│
-                  │ id (PK)          │
-                  │ character_id (FK)│
-                  │ affection_range  │
-                  │ choice_text      │
-                  │ affection_delta  │
-                  │ tags             │
-                  └──────────────────┘
+┌──────┴───────────────────┐
+│    game_sessions         │
+│──────────────────────────│
+│ id (PK)                  │
+│ user_id (FK)             │
+│ affection                │
+│ current_scene            │
+│ status                   │
+│ save_slot                │
+│ created_at               │
+└──────┬───────────────────┘
+       │ 1
+       │
+       │ 1
+┌──────┴───────────────────┐
+│  character_settings      │ ◀── 연애 대상자 커스터마이징
+│──────────────────────────│
+│ id (PK)                  │
+│ session_id (FK)          │
+│ gender                   │ ◀── 성별 (male/female)
+│ style                    │ ◀── 스타일 (tsundere, cool, cute 등)
+│ mbti                     │ ◀── 캐릭터 MBTI
+│ art_style                │ ◀── 그림체 (anime, realistic 등)
+│ created_at               │
+└──────┬───────────────────┘
+       │ 1
+       │
+       │ N
+┌──────┴───────────────────┐
+│  character_expressions   │ ◀── 표정 이미지 (6종)
+│──────────────────────────│
+│ id (PK)                  │
+│ setting_id (FK)          │
+│ expression_type          │ ◀── neutral, happy, sad, jealous, shy, excited
+│ image_url                │
+│ created_at               │
+└──────────────────────────┘
+
+┌──────────────────────────┐
+│       scenes             │
+│──────────────────────────│
+│ id (PK)                  │
+│ session_id (FK)          │
+│ scene_number             │
+│ expression_type          │ ◀── 사용된 표정
+│ dialogue_text            │
+│ choices_offered (JSONB)  │
+│ is_special_event         │ ◀── 특별 이벤트 여부
+│ special_image_url        │ ◀── 서비스 컷 URL
+│ created_at               │
+└──────────────────────────┘
+
+┌──────────────────────────┐
+│   ai_generated_content   │
+│──────────────────────────│
+│ id (PK)                  │
+│ prompt_hash (UNIQUE)     │
+│ content_type             │ ◀── expression, special_event
+│ content_data (JSONB)     │
+│ cache_hit_count          │
+│ created_at               │
+└──────────────────────────┘
+
+┌──────────────────────────┐
+│    minigame_results      │ ◀── 미니게임 결과
+│──────────────────────────│
+│ id (PK)                  │
+│ session_id (FK)          │
+│ scene_number             │
+│ result                   │ ◀── perfect, great, miss
+│ bonus_affection          │
+│ created_at               │
+└──────────────────────────┘
 ```
 
 #### 핵심 테이블 요약
 
 | 테이블 | 용도 | 핵심 필드 |
 |--------|------|-----------|
-| **users** | 사용자 정보 | google_id, email |
-| **characters** | 캐릭터 마스터 | type, personality, base_affection |
-| **game_sessions** | 게임 진행 상태 | affection, current_scene, status |
-| **scenes** | 각 씬의 상세 정보 | image_url, dialogue_text |
-| **dialogue_history** | 선택 내역 추적 | choice_text, affection_delta |
-| **ai_generated_content** | AI 출력 캐싱 | prompt_hash, content_data |
-| **choice_templates** | 선택지 마스터 | affection_range, choice_text |
-| **ending_stats** | 엔딩 통계 | ending_type, final_affection |
-| **user_preferences** | 사용자 선호도 | favorite_characters, settings |
+| **users** | 사용자 정보 | google_id, email, mbti, is_premium |
+| **game_sessions** | 게임 진행 상태 | affection, current_scene, status, save_slot |
+| **character_settings** | 연애 대상자 설정 | gender, style, mbti, art_style |
+| **character_expressions** | 표정 이미지 (6종) | expression_type, image_url |
+| **scenes** | 각 씬의 상세 정보 | expression_type, dialogue_text, is_special_event |
+| **ai_generated_content** | AI 출력 캐싱 | prompt_hash, content_type, content_data |
+| **minigame_results** | 미니게임 결과 | result, bonus_affection |
 
 #### 주요 관계 (Relationships)
 
@@ -527,11 +709,15 @@ Text:      #2C3E50 (다크 그레이)
 -- 1:N 관계
 users ────── game_sessions (한 유저가 여러 게임 플레이)
 game_sessions ────── scenes (한 게임에 여러 씬)
-scenes ────── dialogue_history (한 씬에 여러 대화)
-characters ────── game_sessions (한 캐릭터로 여러 게임)
 
--- 캐싱 관계
-characters ────── ai_generated_content (캐릭터별 AI 콘텐츠 캐시)
+-- 1:1 관계
+game_sessions ────── character_settings (한 게임에 하나의 캐릭터 설정)
+
+-- 1:N 관계 (표정)
+character_settings ────── character_expressions (한 설정에 6개 표정)
+
+-- 미니게임
+game_sessions ────── minigame_results (한 게임에 여러 미니게임 결과)
 ```
 
 #### 인덱스 전략
@@ -542,7 +728,8 @@ CREATE INDEX idx_user_sessions ON game_sessions(user_id, status);
 CREATE INDEX idx_active_sessions ON game_sessions(status) WHERE status = 'playing';
 CREATE INDEX idx_scenes_lookup ON scenes(session_id, scene_number);
 CREATE INDEX idx_ai_cache ON ai_generated_content(prompt_hash);
-CREATE INDEX idx_choice_affection ON choice_templates(affection_range);
+CREATE INDEX idx_expressions ON character_expressions(setting_id, expression_type);
+CREATE INDEX idx_user_premium ON users(is_premium);
 ```
 
 > **상세 스키마 및 샘플 데이터는 `database-design.md` 참조**
