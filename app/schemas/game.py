@@ -1,6 +1,8 @@
 from uuid import UUID
 from datetime import datetime
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
+
+from app.schemas.character import CharacterSettingResponse
 
 
 class GameSessionCreate(BaseModel):
@@ -10,7 +12,7 @@ class GameSessionCreate(BaseModel):
 
 class GameSessionResponse(BaseModel):
     id: UUID
-    character_id: int
+    character_id: int | None = None
     character_name: str | None = None
     character_type: str | None = None
     affection: int
@@ -20,8 +22,20 @@ class GameSessionResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
+
+
+class GameSessionWithSettingsResponse(BaseModel):
+    """Response schema for game session with character settings."""
+    id: UUID
+    user_id: UUID
+    affection: int
+    current_scene: int
+    status: str
+    save_slot: int
+    character_settings: CharacterSettingResponse
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ChoiceResponse(BaseModel):

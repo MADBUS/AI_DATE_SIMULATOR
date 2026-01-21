@@ -130,7 +130,7 @@ CREATE TABLE minigame_results (
 - [x] 프로젝트 초기화 (Next.js, FastAPI)
 - [x] Google OAuth 로그인
 - [x] 사용자 MBTI 입력 (온보딩)
-- [ ] 연애 대상자 커스터마이징 UI (성별, 스타일, MBTI, 그림체)
+- [x] 연애 대상자 커스터마이징 API (성별, 스타일, MBTI, 그림체)
 - [ ] 게임 세션 생성
 - [ ] 캐릭터 설정 DB 저장
 
@@ -213,27 +213,81 @@ pip install fastapi uvicorn sqlalchemy asyncpg redis google-generativeai
 
 ---
 
-#### TASK-004: 연애 대상자 커스터마이징
+#### TASK-004: 연애 대상자 커스터마이징 API
 **담당**: 개발자
 
+**목표**: 사용자가 AI 파트너의 특성(성별, 스타일, MBTI, 그림체)을 선택하여 새로운 게임 세션을 시작할 수 있는 API 엔드포인트를 TDD 방식으로 개발합니다.
+
 **구현 파일**:
-- `app/character-setup/page.tsx`
-- `app/api/character_settings.py`
+- **테스트 (신규)**: `tests/api/test_character_settings.py`
+- **API 라우터 (신규)**: `app/api/character_settings.py`
+- **스키마 (신규/수정)**: `app/schemas/character.py`, `app/schemas/game.py`
+- **모델 (신규/수정)**: `app/models/character.py`, `app/models/game.py`
+- **메인 앱**: `app/main.py` (라우터 추가)
 
-**선택 옵션**:
-- 성별: 남성, 여성
-- 스타일: 츤데레, 쿨뷰티, 귀여움, 섹시, 청순
-- MBTI: 16가지
-- 그림체: 애니메이션, 실사풍, 수채화
+**API 설계**:
+- **`POST /api/character_settings/`**
+  - **설명**: 사용자 ID와 캐릭터 설정을 받아 새로운 게임 세션과 캐릭터 설정을 생성합니다.
+  - **요청 본문** (`schemas.CharacterSettingCreate`):
+    ```json
+    {
+      "user_id": "a-valid-user-uuid",
+      "gender": "female",
+      "style": "tsundere",
+      "mbti": "INTJ",
+      "art_style": "anime"
+    }
+    ```
+  - **성공 응답 (201 Created)** (`schemas.GameSession`):
+    ```json
+    {
+      "id": "new-game-session-uuid",
+      "user_id": "a-valid-user-uuid",
+      "affection": 42,
+      "current_scene": 1,
+      "status": "playing",
+      "save_slot": 1,
+      "character_settings": {
+        "id": "new-character-setting-uuid",
+        "gender": "female",
+        "style": "tsundere",
+        "mbti": "INTJ",
+        "art_style": "anime"
+      }
+    }
+    ```
+  - **실패 응답**:
+    - `404 Not Found`: `user_id`가 존재하지 않을 경우.
+    - `422 Unprocessable Entity`: 요청 본문이 유효하지 않을 경우.
 
-**API**:
-- `POST /api/games/new` - 게임 + 캐릭터 설정 생성
-- `GET /api/games/{session_id}/settings` - 캐릭터 설정 조회
+**TDD 구현 단계**:
+1.  **RED**:
+    - `tests/api/` 폴더를 생성합니다.
+    - `tests/api/test_character_settings.py` 파일을 생성합니다.
+    - `test_create_game_with_character_settings` 함수 내에, 존재하지 않는 `user_id`로 `/api/character_settings/`에 POST 요청을 보내고 `404 Not Found` 응답이 오는지 확인하는 테스트 코드를 작성합니다.
+    - 테스트를 실행하여 `404`가 아닌 다른 오류(예: 엔드포인트 없음)로 실패하는 것을 확인합니다.
+2.  **GREEN**:
+    - `app/api/character_settings.py` 파일과 `APIRouter`를 생성합니다.
+    - `app/main.py`에 위에서 생성한 라우터를 포함시킵니다.
+    - `app/schemas/character.py`에 `CharacterSettingCreate`와 `CharacterSetting` 스키마를 정의합니다.
+    - `app/schemas/game.py`에 `GameSession` 응답 스키마(캐릭터 설정 포함)를 정의합니다.
+    - `POST /api/character_settings/` 엔드포인트의 기본 로직을 구현합니다. (DB 연동 없이, 받은 데이터를 그대로 반환)
+    - 테스트가 `404`로 실패하도록 (사용자 조회 로직 추가) 수정합니다.
+3.  **RED**:
+    - 이번에는 유효한 `user_id`로 요청 시, 새로운 `GameSession`과 `CharacterSetting`이 성공적으로 생성되고 `201 Created` 상태 코드와 함께 해당 세션 정보가 반환되는지 확인하는 테스트를 추가합니다. 이 테스트는 DB 로직이 없으므로 실패합니다.
+4.  **GREEN**:
+    - `app/models/`에 필요한 SQLAlchemy 모델(`GameSession`, `CharacterSetting`)이 `plan.md`의 정의와 일치하는지 확인/수정합니다.
+    - 엔드포인트에 실제 DB 세션을 주입하고, 전달받은 데이터로 `GameSession`과 `CharacterSetting` 객체를 생성하여 DB에 저장하는 로직을 구현합니다.
+    - 초기 호감도를 30-50 사이의 랜덤 값으로 설정하는 로직을 추가합니다.
+    - 모든 테스트가 통과하는지 확인합니다.
+5.  **REFACTOR**:
+    - 코드의 중복을 제거하고, 가독성을 높입니다.
+    - 서비스 로직이 있다면 서비스 계층으로 분리하는 것을 고려합니다.
+    - 모든 테스트가 여전히 통과하는지 확인합니다.
 
 **완료 조건**:
-- ✅ 4가지 옵션 선택 UI
-- ✅ character_settings 테이블 저장
-- ✅ 설정 완료 후 표정 생성으로 이동
+- ✅ 위 TDD 단계에 따라 작성된 모든 테스트가 통과합니다.
+- ✅ `POST /api/character_settings/` 엔드포인트가 성공적으로 동작하여 DB에 데이터를 생성합니다.
 
 ---
 

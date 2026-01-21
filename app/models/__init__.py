@@ -1,6 +1,6 @@
 from app.models.user import User
 from app.models.character import Character
-from app.models.game import GameSession, Scene, ChoiceTemplate, AIGeneratedContent
+from app.models.game import GameSession, Scene, ChoiceTemplate, AIGeneratedContent, CharacterSetting
 
 __all__ = [
     "User",
@@ -9,4 +9,5 @@ __all__ = [
     "Scene",
     "ChoiceTemplate",
     "AIGeneratedContent",
+    "CharacterSetting",
 ]

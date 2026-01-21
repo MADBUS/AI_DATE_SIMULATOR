@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import String, Integer, Text, DateTime, ForeignKey, CheckConstraint
-from sqlalchemy.dialects.postgresql import UUID, JSONB, ARRAY
+from sqlalchemy import String, Integer, Text, DateTime, ForeignKey, CheckConstraint, JSON
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -16,7 +16,9 @@ class GameSession(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id")
     )
-    character_id: Mapped[int] = mapped_column(Integer, ForeignKey("characters.id"))
+    character_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("characters.id"), nullable=True
+    )
     affection: Mapped[int] = mapped_column(Integer, default=30)
     current_scene: Mapped[int] = mapped_column(Integer, default=1)
     status: Mapped[str] = mapped_column(
@@ -36,6 +38,7 @@ class GameSession(Base):
     user = relationship("User", back_populates="game_sessions")
     character = relationship("Character", back_populates="game_sessions")
     scenes = relationship("Scene", back_populates="session")
+    character_setting = relationship("CharacterSetting", back_populates="session", uselist=False)
 
 
 class Scene(Base):
@@ -50,7 +53,7 @@ class Scene(Base):
     scene_number: Mapped[int] = mapped_column(Integer)
     image_url: Mapped[str] = mapped_column(Text, nullable=True)
     dialogue_text: Mapped[str] = mapped_column(Text, nullable=True)
-    choices_offered: Mapped[dict] = mapped_column(JSONB, nullable=True)
+    choices_offered: Mapped[dict] = mapped_column(JSON, nullable=True)
     selected_choice_index: Mapped[int] = mapped_column(Integer, nullable=True)
     affection_delta: Mapped[int] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
@@ -68,7 +71,7 @@ class ChoiceTemplate(Base):
     affection_max: Mapped[int] = mapped_column(Integer, default=100)
     choice_text: Mapped[str] = mapped_column(Text)
     affection_delta: Mapped[int] = mapped_column(Integer)
-    tags: Mapped[list] = mapped_column(ARRAY(String), nullable=True)
+    tags: Mapped[list] = mapped_column(JSON, nullable=True)
 
     # Relationships
     character = relationship("Character", back_populates="choice_templates")
@@ -85,8 +88,28 @@ class AIGeneratedContent(Base):
     )
     prompt_hash: Mapped[str] = mapped_column(String(64), unique=True)
     content_type: Mapped[str] = mapped_column(String(20))  # 'image', 'dialogue'
-    content_data: Mapped[dict] = mapped_column(JSONB)
+    content_data: Mapped[dict] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     # Relationships
     character = relationship("Character", back_populates="ai_contents")
+
+
+class CharacterSetting(Base):
+    """User's customization choices for the AI partner per game session."""
+    __tablename__ = "character_settings"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    session_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("game_sessions.id"), unique=True
+    )
+    gender: Mapped[str] = mapped_column(String(10))  # 'male', 'female'
+    style: Mapped[str] = mapped_column(String(50))  # 'tsundere', 'cool', 'cute', 'sexy', 'pure'
+    mbti: Mapped[str] = mapped_column(String(4))  # 'INTJ', 'ENFP', etc.
+    art_style: Mapped[str] = mapped_column(String(50))  # 'anime', 'realistic', 'watercolor'
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    session = relationship("GameSession", back_populates="character_setting")
