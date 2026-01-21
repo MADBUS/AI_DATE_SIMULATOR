@@ -33,7 +33,7 @@ class GameSessionWithSettingsResponse(BaseModel):
     current_scene: int
     status: str
     save_slot: int
-    character_settings: CharacterSettingResponse
+    character_settings: CharacterSettingResponse | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

@@ -10,9 +10,11 @@ from app.models import GameSession, Character, ChoiceTemplate
 from app.schemas.game import (
     GameSessionCreate,
     GameSessionResponse,
+    GameSessionWithSettingsResponse,
     ChoiceSelect,
     ChoiceResponse,
 )
+from app.schemas.character import CharacterSettingResponse
 
 router = APIRouter()
 
@@ -90,29 +92,40 @@ async def create_game(
     )
 
 
-@router.get("/{session_id}", response_model=GameSessionResponse)
+@router.get("/{session_id}", response_model=GameSessionWithSettingsResponse)
 async def get_game(session_id: UUID, db: AsyncSession = Depends(get_db)):
-    """게임 세션 조회"""
+    """게임 세션 조회 (캐릭터 설정 포함)"""
     result = await db.execute(
         select(GameSession)
-        .options(selectinload(GameSession.character))
+        .options(
+            selectinload(GameSession.character),
+            selectinload(GameSession.character_setting),
+        )
         .where(GameSession.id == session_id)
     )
     session = result.scalar_one_or_none()
     if not session:
         raise HTTPException(status_code=404, detail="Game session not found")
 
-    return GameSessionResponse(
+    # Build character_settings response if exists
+    character_settings = None
+    if session.character_setting:
+        character_settings = CharacterSettingResponse(
+            id=session.character_setting.id,
+            gender=session.character_setting.gender,
+            style=session.character_setting.style,
+            mbti=session.character_setting.mbti,
+            art_style=session.character_setting.art_style,
+        )
+
+    return GameSessionWithSettingsResponse(
         id=session.id,
-        character_id=session.character_id,
-        character_name=session.character.name if session.character else None,
-        character_type=session.character.type if session.character else None,
+        user_id=session.user_id,
         affection=session.affection,
         current_scene=session.current_scene,
         status=session.status,
         save_slot=session.save_slot,
-        created_at=session.created_at,
-        updated_at=session.updated_at,
+        character_settings=character_settings,
     )
 
 

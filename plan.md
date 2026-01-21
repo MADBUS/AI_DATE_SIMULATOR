@@ -131,8 +131,8 @@ CREATE TABLE minigame_results (
 - [x] Google OAuth 로그인
 - [x] 사용자 MBTI 입력 (온보딩)
 - [x] 연애 대상자 커스터마이징 API (성별, 스타일, MBTI, 그림체)
-- [ ] 게임 세션 생성
-- [ ] 캐릭터 설정 DB 저장
+- [x] 게임 세션 생성
+- [x] 캐릭터 설정 DB 저장
 
 ### Week 2: AI 통합 + 표정 시스템
 - [ ] Gemini API 연동
