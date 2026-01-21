@@ -24,6 +24,11 @@ class SpecialEventResponse(BaseModel):
     show_minigame: bool = False
 
 
+class SpecialImageResponse(BaseModel):
+    image_url: str
+    is_blurred: bool
+
+
 @router.post("/{session_id}/generate", response_model=SceneResponse)
 async def generate_scene(session_id: UUID, db: AsyncSession = Depends(get_db)):
     """씬 생성 (이미지 + 대화 + 선택지) - MBTI 및 캐릭터 설정 반영"""
@@ -111,3 +116,35 @@ async def check_special_event(session_id: UUID, db: AsyncSession = Depends(get_d
         )
 
     return SpecialEventResponse(is_special_event=False)
+
+
+@router.get("/{session_id}/special-image", response_model=SpecialImageResponse)
+async def get_special_image(
+    session_id: UUID,
+    image_url: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    결제 상태에 따라 이미지 blur 처리 여부 결정
+
+    Returns:
+        image_url: 이미지 URL
+        is_blurred: blur 처리 여부 (프리미엄 사용자는 False)
+    """
+    # 게임 세션 조회 (user 포함)
+    result = await db.execute(
+        select(GameSession)
+        .options(selectinload(GameSession.user))
+        .where(GameSession.id == session_id)
+    )
+    session = result.scalar_one_or_none()
+    if not session:
+        raise HTTPException(status_code=404, detail="Game session not found")
+
+    # 프리미엄 사용자인 경우 blur 없음
+    is_premium = session.user.is_premium if session.user else False
+
+    return SpecialImageResponse(
+        image_url=image_url,
+        is_blurred=not is_premium
+    )
