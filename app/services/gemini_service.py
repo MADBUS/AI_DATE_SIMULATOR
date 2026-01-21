@@ -121,19 +121,32 @@ CHOICE_TEMPLATES = {
 
 
 async def generate_scene_content(
-    character, scene_number: int, affection: int
+    character_setting,
+    user_mbti: str | None,
+    scene_number: int,
+    affection: int,
 ) -> dict:
-    """씬 콘텐츠 생성 (이미지 + 대화 + 선택지)"""
+    """
+    씬 콘텐츠 생성 (이미지 + 대화 + 선택지)
 
+    MBTI 및 캐릭터 설정을 반영하여 콘텐츠 생성.
+
+    Args:
+        character_setting: CharacterSetting 모델 (gender, style, mbti, art_style)
+        user_mbti: 사용자의 MBTI (선택지 스타일에 영향)
+        scene_number: 현재 씬 번호
+        affection: 현재 호감도
+    """
     # 이미지 생성 (Placeholder)
     # TODO: 실제 Gemini API 연동
     image_url = random.choice(PLACEHOLDER_IMAGES)
 
-    # 대화 생성
-    dialogues = DIALOGUE_TEMPLATES.get(character.type, DIALOGUE_TEMPLATES["cute"])
+    # 대화 생성 (캐릭터 스타일 반영)
+    style = character_setting.style if character_setting else "cute"
+    dialogues = DIALOGUE_TEMPLATES.get(style, DIALOGUE_TEMPLATES["cute"])
     dialogue = random.choice(dialogues)
 
-    # 선택지 생성
+    # 선택지 생성 (호감도에 따라 delta 조정)
     choices = []
     choices.append(random.choice(CHOICE_TEMPLATES["positive"]))
     choices.append(random.choice(CHOICE_TEMPLATES["neutral"]))

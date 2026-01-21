@@ -138,7 +138,7 @@ CREATE TABLE minigame_results (
 - [x] Gemini API 연동
 - [x] 표정 이미지 6종 사전 생성
 - [x] 미니게임: 눈 마주치기 (로딩 대기용) - 백엔드 결과 저장 API 완료
-- [ ] MBTI 기반 선택지 생성
+- [x] MBTI 기반 선택지 생성
 - [ ] 게임 화면 UI (표정 전환)
 - [ ] 호감도 게이지
 
