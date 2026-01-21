@@ -46,11 +46,10 @@ async def create_character_settings(
             detail="User not found"
         )
 
-    # Create game session with random initial affection (30-50)
-    initial_affection = random.randint(30, 50)
+    # Create game session with initial affection 30
     game_session = GameSession(
         user_id=data.user_id,
-        affection=initial_affection,
+        affection=30,  # 고정값 30으로 시작
         current_scene=1,
         status="playing",
         save_slot=1,

@@ -203,13 +203,13 @@ async def select_choice(
     # 호감도 계산
     new_affection = max(0, min(100, session.affection + choice.affection_delta))
     session.affection = new_affection
-    session.current_scene += 1
+    session.current_scene += 1  # 턴 카운트 증가
 
-    # 엔딩 체크
-    if new_affection <= 10:
+    # 엔딩 체크 (호감도 0 또는 100 도달 시)
+    if new_affection <= 0:
         session.status = "sad_ending"
-    elif session.current_scene >= 10:
-        session.status = "happy_ending" if new_affection >= 70 else "sad_ending"
+    elif new_affection >= 100:
+        session.status = "happy_ending"
 
     await db.commit()
 
