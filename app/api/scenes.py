@@ -1,8 +1,10 @@
+import random
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
+from pydantic import BaseModel
 
 from app.core.database import get_db
 from app.models import GameSession, Scene
@@ -11,6 +13,15 @@ from app.schemas.game import SceneResponse, ChoiceResponse
 from app.services.gemini_service import generate_scene_content
 
 router = APIRouter()
+
+# Special event probability threshold
+SPECIAL_EVENT_PROBABILITY = 0.15
+
+
+class SpecialEventResponse(BaseModel):
+    is_special_event: bool
+    special_image_url: str | None = None
+    show_minigame: bool = False
 
 
 @router.post("/{session_id}/generate", response_model=SceneResponse)
@@ -63,3 +74,40 @@ async def generate_scene(session_id: UUID, db: AsyncSession = Depends(get_db)):
         affection=session.affection,
         status=session.status,
     )
+
+
+@router.post("/{session_id}/check-event", response_model=SpecialEventResponse)
+async def check_special_event(session_id: UUID, db: AsyncSession = Depends(get_db)):
+    """
+    특별 이벤트 발생 체크 (15% 확률)
+
+    Returns:
+        is_special_event: 이벤트 발생 여부
+        special_image_url: 특별 이미지 URL (이벤트 발생 시)
+        show_minigame: 미니게임 표시 여부
+    """
+    # 게임 세션 조회
+    result = await db.execute(
+        select(GameSession)
+        .options(selectinload(GameSession.character_setting))
+        .where(GameSession.id == session_id)
+    )
+    session = result.scalar_one_or_none()
+    if not session:
+        raise HTTPException(status_code=404, detail="Game session not found")
+
+    if session.status != "playing":
+        raise HTTPException(status_code=400, detail="Game already ended")
+
+    # 15% 확률로 특별 이벤트 발생
+    if random.random() < SPECIAL_EVENT_PROBABILITY:
+        # TODO: 실제 Gemini API로 특별 이미지 생성
+        special_image_url = f"https://placehold.co/1024x768/FF69B4/FFFFFF?text=Special+Event+Scene+{session.current_scene}"
+
+        return SpecialEventResponse(
+            is_special_event=True,
+            special_image_url=special_image_url,
+            show_minigame=True,
+        )
+
+    return SpecialEventResponse(is_special_event=False)
