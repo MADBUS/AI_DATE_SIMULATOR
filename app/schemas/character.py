@@ -31,3 +31,17 @@ class CharacterSettingResponse(BaseModel):
     art_style: str
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class CharacterExpressionResponse(BaseModel):
+    """Response schema for a single character expression."""
+    id: UUID
+    expression_type: str
+    image_url: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ExpressionsGeneratedResponse(BaseModel):
+    """Response schema for generated expressions."""
+    expressions: list[CharacterExpressionResponse]

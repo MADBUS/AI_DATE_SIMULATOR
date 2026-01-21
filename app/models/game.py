@@ -113,3 +113,22 @@ class CharacterSetting(Base):
 
     # Relationships
     session = relationship("GameSession", back_populates="character_setting")
+    expressions = relationship("CharacterExpression", back_populates="setting")
+
+
+class CharacterExpression(Base):
+    """Expression images for a character setting (6 types)."""
+    __tablename__ = "character_expressions"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    setting_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("character_settings.id")
+    )
+    expression_type: Mapped[str] = mapped_column(String(20))  # 'neutral', 'happy', 'sad', 'jealous', 'shy', 'excited'
+    image_url: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    setting = relationship("CharacterSetting", back_populates="expressions")
