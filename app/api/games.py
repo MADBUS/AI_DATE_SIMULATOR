@@ -24,7 +24,10 @@ async def get_games(user_id: UUID, db: AsyncSession = Depends(get_db)):
     """사용자의 게임 목록 조회"""
     result = await db.execute(
         select(GameSession)
-        .options(selectinload(GameSession.character))
+        .options(
+            selectinload(GameSession.character),
+            selectinload(GameSession.character_setting),
+        )
         .where(GameSession.user_id == user_id)
         .order_by(GameSession.updated_at.desc())
     )
@@ -42,6 +45,13 @@ async def get_games(user_id: UUID, db: AsyncSession = Depends(get_db)):
             save_slot=s.save_slot,
             created_at=s.created_at,
             updated_at=s.updated_at,
+            character_settings=CharacterSettingResponse(
+                id=s.character_setting.id,
+                gender=s.character_setting.gender,
+                style=s.character_setting.style,
+                mbti=s.character_setting.mbti,
+                art_style=s.character_setting.art_style,
+            ) if s.character_setting else None,
         )
         for s in sessions
     ]

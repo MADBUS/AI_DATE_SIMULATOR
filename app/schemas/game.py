@@ -21,6 +21,7 @@ class GameSessionResponse(BaseModel):
     save_slot: int
     created_at: datetime
     updated_at: datetime
+    character_settings: CharacterSettingResponse | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
