@@ -14,6 +14,7 @@ from app.schemas.game import (
     ChoiceSelect,
     ChoiceResponse,
     SelectChoiceResponse,
+    EndingEventResponse,
 )
 from app.schemas.character import CharacterSettingResponse
 
@@ -234,6 +235,55 @@ async def select_choice(
         status=session.status,
         expression_type=expression_type,
         expression_image_url=expression_image_url,
+    )
+
+
+# Happy ending threshold
+HAPPY_ENDING_THRESHOLD = 70
+
+
+@router.post("/{session_id}/ending-event", response_model=EndingEventResponse)
+async def trigger_ending_event(
+    session_id: UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    엔딩 이벤트 트리거 - 호감도에 따라 긍정/부정 이미지 생성
+
+    - 호감도 >= 70: happy_ending + 긍정적 이미지
+    - 호감도 < 70: sad_ending + 부정적 이미지
+    """
+    # 게임 세션 조회 (character_setting 포함)
+    result = await db.execute(
+        select(GameSession)
+        .options(selectinload(GameSession.character_setting))
+        .where(GameSession.id == session_id)
+    )
+    session = result.scalar_one_or_none()
+    if not session:
+        raise HTTPException(status_code=404, detail="Game session not found")
+
+    # 이미 종료된 게임인지 확인
+    if session.status != "playing":
+        raise HTTPException(status_code=400, detail="Game already ended")
+
+    # 호감도에 따라 엔딩 결정
+    is_positive = session.affection >= HAPPY_ENDING_THRESHOLD
+    ending_type = "happy_ending" if is_positive else "sad_ending"
+
+    # 게임 상태 업데이트
+    session.status = ending_type
+    await db.commit()
+
+    # 엔딩 이미지 생성 (TODO: 실제 Gemini API 연동)
+    mood = "romantic" if is_positive else "melancholic"
+    ending_image_url = f"https://placehold.co/1024x768/{'FF69B4' if is_positive else '808080'}/FFFFFF?text={ending_type.replace('_', '+')}+{mood}"
+
+    return EndingEventResponse(
+        ending_type=ending_type,
+        final_affection=session.affection,
+        is_positive=is_positive,
+        ending_image_url=ending_image_url,
     )
 
 

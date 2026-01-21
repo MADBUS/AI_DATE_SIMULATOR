@@ -23,3 +23,4 @@ class User(Base):
 
     # Relationships
     game_sessions = relationship("GameSession", back_populates="user")
+    gallery_images = relationship("UserGallery", back_populates="user")

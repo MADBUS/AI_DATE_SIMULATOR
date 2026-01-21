@@ -71,3 +71,10 @@ class SelectChoiceResponse(BaseModel):
     status: str
     expression_type: str
     expression_image_url: str | None = None
+
+
+class EndingEventResponse(BaseModel):
+    ending_type: str  # 'happy_ending', 'sad_ending'
+    final_affection: int
+    is_positive: bool
+    ending_image_url: str

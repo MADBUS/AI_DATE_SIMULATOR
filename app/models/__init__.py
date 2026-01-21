@@ -1,6 +1,7 @@
 from app.models.user import User
 from app.models.character import Character
 from app.models.game import GameSession, Scene, ChoiceTemplate, AIGeneratedContent, CharacterSetting, CharacterExpression, MinigameResult
+from app.models.gallery import UserGallery
 
 __all__ = [
     "User",
@@ -12,4 +13,5 @@ __all__ = [
     "CharacterSetting",
     "CharacterExpression",
     "MinigameResult",
+    "UserGallery",
 ]
