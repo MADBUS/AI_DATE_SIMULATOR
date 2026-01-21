@@ -135,7 +135,7 @@ CREATE TABLE minigame_results (
 - [x] 캐릭터 설정 DB 저장
 
 ### Week 2: AI 통합 + 표정 시스템
-- [ ] Gemini API 연동
+- [x] Gemini API 연동
 - [ ] 표정 이미지 6종 사전 생성
 - [ ] 미니게임: 눈 마주치기 (로딩 대기용)
 - [ ] MBTI 기반 선택지 생성

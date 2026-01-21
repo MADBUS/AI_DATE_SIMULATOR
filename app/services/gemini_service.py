@@ -2,6 +2,69 @@ import hashlib
 import random
 from app.core.config import settings
 
+# 6가지 표정 타입
+EXPRESSION_TYPES = [
+    "neutral",   # 일반
+    "happy",     # 기쁜
+    "sad",       # 슬픈
+    "jealous",   # 질투
+    "shy",       # 부끄러운
+    "excited",   # 흥분
+]
+
+
+def build_expression_prompt(
+    gender: str,
+    style: str,
+    art_style: str,
+    expression: str,
+) -> str:
+    """
+    캐릭터 설정 기반 표정 이미지 생성 프롬프트 생성.
+
+    Args:
+        gender: 'male' or 'female'
+        style: 'tsundere', 'cool', 'cute', 'sexy', 'pure'
+        art_style: 'anime', 'realistic', 'watercolor'
+        expression: one of EXPRESSION_TYPES
+
+    Returns:
+        Gemini API용 이미지 생성 프롬프트
+    """
+    style_descriptions = {
+        "tsundere": "with a tsundere personality, initially cold but secretly caring",
+        "cool": "with a cool and calm demeanor, mysterious and composed",
+        "cute": "with a cute and cheerful personality, bright and adorable",
+        "sexy": "with an elegant and attractive appearance, confident and alluring",
+        "pure": "with an innocent and pure personality, gentle and sincere",
+    }
+
+    expression_descriptions = {
+        "neutral": "with a neutral, calm expression",
+        "happy": "with a happy, joyful smile",
+        "sad": "with a sad, melancholic expression",
+        "jealous": "with a jealous, slightly annoyed look",
+        "shy": "with a shy, blushing expression",
+        "excited": "with an excited, enthusiastic expression",
+    }
+
+    art_style_descriptions = {
+        "anime": "in anime art style, vibrant colors, clean lines",
+        "realistic": "in realistic art style, detailed and lifelike",
+        "watercolor": "in watercolor art style, soft and dreamy",
+    }
+
+    style_desc = style_descriptions.get(style, style_descriptions["cute"])
+    expression_desc = expression_descriptions.get(expression, expression_descriptions["neutral"])
+    art_desc = art_style_descriptions.get(art_style, art_style_descriptions["anime"])
+
+    prompt = f"""A portrait of a {gender} character {style_desc}, {expression_desc}, {art_desc}.
+High quality, detailed, suitable for a dating simulation game.
+Upper body shot, looking at the viewer, soft lighting."""
+
+    return prompt
+
+
 # Placeholder 이미지 URL (실제로는 Gemini API 사용)
 PLACEHOLDER_IMAGES = [
     "https://placehold.co/1024x768/FFB6C1/333333?text=Scene+1",
