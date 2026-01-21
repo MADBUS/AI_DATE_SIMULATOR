@@ -6,13 +6,14 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
-from app.models import GameSession, Character, ChoiceTemplate
+from app.models import GameSession, Character, ChoiceTemplate, CharacterExpression
 from app.schemas.game import (
     GameSessionCreate,
     GameSessionResponse,
     GameSessionWithSettingsResponse,
     ChoiceSelect,
     ChoiceResponse,
+    SelectChoiceResponse,
 )
 from app.schemas.character import CharacterSettingResponse
 
@@ -181,16 +182,18 @@ async def get_choices(session_id: UUID, db: AsyncSession = Depends(get_db)):
     ]
 
 
-@router.post("/{session_id}/select")
+@router.post("/{session_id}/select", response_model=SelectChoiceResponse)
 async def select_choice(
     session_id: UUID,
     choice: ChoiceSelect,
     db: AsyncSession = Depends(get_db),
 ):
-    """선택지 선택 및 게임 진행"""
-    # 게임 세션 조회
+    """선택지 선택 및 게임 진행 - 감정 이미지 반환"""
+    # 게임 세션 조회 (character_setting 포함)
     result = await db.execute(
-        select(GameSession).where(GameSession.id == session_id)
+        select(GameSession)
+        .options(selectinload(GameSession.character_setting))
+        .where(GameSession.id == session_id)
     )
     session = result.scalar_one_or_none()
     if not session:
@@ -209,11 +212,29 @@ async def select_choice(
 
     await db.commit()
 
-    return {
-        "new_affection": new_affection,
-        "next_scene": session.current_scene,
-        "status": session.status,
-    }
+    # 감정 타입 결정 (없으면 neutral)
+    expression_type = choice.expression_type or "neutral"
+
+    # 해당 감정의 이미지 조회
+    expression_image_url = None
+    if session.character_setting:
+        expr_result = await db.execute(
+            select(CharacterExpression).where(
+                CharacterExpression.setting_id == session.character_setting.id,
+                CharacterExpression.expression_type == expression_type
+            )
+        )
+        expression = expr_result.scalar_one_or_none()
+        if expression:
+            expression_image_url = expression.image_url
+
+    return SelectChoiceResponse(
+        new_affection=new_affection,
+        next_scene=session.current_scene,
+        status=session.status,
+        expression_type=expression_type,
+        expression_image_url=expression_image_url,
+    )
 
 
 @router.delete("/{session_id}")

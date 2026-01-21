@@ -55,11 +55,19 @@ class SceneResponse(BaseModel):
 
 
 class ChoiceSelect(BaseModel):
-    choice_index: int
     affection_delta: int
+    expression_type: str | None = None  # 'neutral', 'happy', 'sad', 'jealous', 'shy', 'excited'
 
 
 class ChoiceResult(BaseModel):
     new_affection: int
     next_scene: int
     status: str  # 'continue', 'happy_ending', 'sad_ending'
+
+
+class SelectChoiceResponse(BaseModel):
+    new_affection: int
+    next_scene: int
+    status: str
+    expression_type: str
+    expression_image_url: str | None = None
