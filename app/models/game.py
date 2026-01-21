@@ -39,6 +39,7 @@ class GameSession(Base):
     character = relationship("Character", back_populates="game_sessions")
     scenes = relationship("Scene", back_populates="session")
     character_setting = relationship("CharacterSetting", back_populates="session", uselist=False)
+    minigame_results = relationship("MinigameResult", back_populates="session")
 
 
 class Scene(Base):
@@ -132,3 +133,22 @@ class CharacterExpression(Base):
 
     # Relationships
     setting = relationship("CharacterSetting", back_populates="expressions")
+
+
+class MinigameResult(Base):
+    """Minigame results for bonus affection."""
+    __tablename__ = "minigame_results"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    session_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("game_sessions.id")
+    )
+    scene_number: Mapped[int] = mapped_column(Integer)
+    result: Mapped[str] = mapped_column(String(10))  # 'perfect', 'great', 'miss'
+    bonus_affection: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    session = relationship("GameSession", back_populates="minigame_results")
