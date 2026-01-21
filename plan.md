@@ -149,7 +149,7 @@ CREATE TABLE minigame_results (
 - [x] 엔딩 화면
 - [x] 사용자 갤러리 (세션 삭제 후에도 이미지 보관)
 - [x] 게임 저장/불러오기 - 이어하기 기능으로 완료
-- [ ] Redis 캐싱
+- [x] Redis 캐싱
 - [ ] Vercel 배포 (프론트)
 - [ ] Railway 배포 (백엔드)
 
