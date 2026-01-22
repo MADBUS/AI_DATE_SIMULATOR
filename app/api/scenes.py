@@ -124,7 +124,12 @@ async def generate_scene(session_id: UUID, db: AsyncSession = Depends(get_db)):
         image_url=image_url,
         dialogue=content["dialogue"],
         choices=[
-            ChoiceResponse(id=i, text=c["text"], delta=c["delta"])
+            ChoiceResponse(
+                id=i,
+                text=c["text"],
+                delta=c["delta"],
+                expression=c.get("expression", "neutral"),
+            )
             for i, c in enumerate(content["choices"])
         ],
         affection=session.affection,

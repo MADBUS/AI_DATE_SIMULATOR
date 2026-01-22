@@ -43,6 +43,7 @@ class ChoiceResponse(BaseModel):
     id: int
     text: str
     delta: int
+    expression: str  # 선택 시 캐릭터 표정
 
 
 class SceneResponse(BaseModel):
