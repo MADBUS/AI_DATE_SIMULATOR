@@ -807,7 +807,7 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 ### 🎰 PvP 매칭 시스템 (WebSocket)
 
 #### Backend
-- [ ] WebSocket 엔드포인트 구현 (`/ws/pvp/match`)
+- [x] WebSocket 엔드포인트 구현 (`/ws/pvp/match`)
 - [ ] 매칭 큐 시스템 (Redis pub/sub)
 - [ ] 30초 타임아웃 처리
 - [x] pvp_matches 테이블 생성
