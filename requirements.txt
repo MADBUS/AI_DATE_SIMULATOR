@@ -9,7 +9,8 @@ python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 httpx==0.26.0
 redis==5.0.1
-google-generativeai==0.3.2
+google-genai>=1.0.0
+pillow>=10.0.0
 python-multipart==0.0.6
 
 # Testing

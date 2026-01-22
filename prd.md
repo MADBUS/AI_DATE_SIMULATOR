@@ -2,7 +2,7 @@
 
 > **버전**: 1.0  
 > **작성일**: 2026-01-14  
-> **작성자**: JangYeol Lee  
+> **작성자**: JangYeol Pyun  
 > **문서 상태**: Draft → Review → Approved
 
 ---
