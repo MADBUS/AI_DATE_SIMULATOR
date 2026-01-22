@@ -1,15 +1,26 @@
 """
 Gemini API Service
 캐릭터 성격과 사용자 MBTI를 반영한 대화 및 선택지 생성
+이미지 생성 (Imagen 3)
 """
 
 import hashlib
 import json
-import google.generativeai as genai
+import os
+import uuid
+from pathlib import Path
+
+from google import genai
+from google.genai import types
+
 from app.core.config import settings
 
-# Gemini API 설정
-genai.configure(api_key=settings.GEMINI_API_KEY)
+# Gemini API 클라이언트 설정
+client = genai.Client(api_key=settings.GEMINI_API_KEY)
+
+# 이미지 저장 경로
+IMAGES_DIR = Path(__file__).parent.parent.parent / "static" / "images" / "characters"
+IMAGES_DIR.mkdir(parents=True, exist_ok=True)
 
 # 6가지 표정 타입
 EXPRESSION_TYPES = [
@@ -22,6 +33,83 @@ EXPRESSION_TYPES = [
 ]
 
 
+def get_character_design(gender: str, style: str) -> dict:
+    """
+    캐릭터 성격과 성별에 따른 일관된 외모 디자인 반환.
+    동일한 gender+style 조합은 항상 같은 외모를 가짐.
+    """
+    # 성격별 캐릭터 디자인 (성별에 따라 다름) - 동양인 특징 포함
+    designs = {
+        "female": {
+            "tsundere": {
+                "hair": "beautiful long twin-tails hairstyle, vibrant crimson red hair with subtle pink gradient highlights, silky shiny straight Asian hair texture, cute hair ribbons",
+                "eyes": "sharp expressive amber-gold Asian eyes with monolid or subtle double eyelid, long eyelashes, fierce yet attractive gaze",
+                "outfit": "stylish Korean/Japanese school uniform with red ribbon tie, crisp white blouse, fitted blazer, fashionable accessories",
+                "features": "flawless porcelain white skin, delicate small Asian nose, soft facial structure, perfectly shaped pink lips, slim petite figure, elegant neck, beautiful East Asian facial features",
+            },
+            "cool": {
+                "hair": "gorgeous long straight jet-black hair flowing past shoulders, elegant side-swept bangs framing face, lustrous silky Asian hair shine",
+                "eyes": "mesmerizing deep dark brown eyes with mysterious allure, elegant Asian eye shape, sharp elegant gaze, thick dark lashes",
+                "outfit": "sophisticated dark navy blazer over elegant blouse, minimalist silver necklace, refined K-fashion style",
+                "features": "flawless pale luminous Korean-style skin, refined elegant East Asian features, graceful long neck, sophisticated beauty, slim elegant proportions",
+            },
+            "cute": {
+                "hair": "adorable short fluffy dark brown hair with cute decorative hair clips and accessories, soft bouncy texture, playful Korean idol style",
+                "eyes": "large sparkling dark brown eyes full of life, innocent doe-eyed look with aegyo-sal, cute Asian eye shape",
+                "outfit": "lovely pastel pink sweater with cute heart patterns, adorable K-fashion accessories, sweet feminine style",
+                "features": "soft round baby face with East Asian features, naturally rosy cheeks, cute small Asian nose, sweet pink lips, petite adorable figure, youthful Korean ulzzang glow",
+            },
+            "sexy": {
+                "hair": "luxurious long wavy dark brown hair cascading elegantly, glamorous soft waves, silky lustrous Asian hair shine",
+                "eyes": "captivating deep dark brown eyes with sultry allure, elegant Asian eye shape, thick long lashes, seductive confident gaze",
+                "outfit": "elegant off-shoulder evening dress, tasteful gold jewelry, sophisticated glamorous style",
+                "features": "flawless radiant Korean glass skin, alluring beauty mark near lips, elegant mature East Asian features, graceful feminine figure, stunning Asian beauty",
+            },
+            "pure": {
+                "hair": "lovely medium-length natural black hair with gentle natural waves, healthy beautiful shine, soft Asian hair texture",
+                "eyes": "innocent clear dark brown eyes with gentle warmth, soft kind gaze, natural Asian eye shape with subtle aegyo-sal",
+                "outfit": "beautiful simple white sundress with delicate lace details, subtle elegant accessories, pure feminine style",
+                "features": "naturally beautiful clear Korean-style skin, soft gentle East Asian features, sweet natural smile, graceful slim figure, wholesome natural Asian beauty",
+            },
+        },
+        "male": {
+            "tsundere": {
+                "hair": "stylishly messy dark brown hair with natural texture, attractive tousled K-pop idol look, slight layered styling",
+                "eyes": "intense sharp dark brown Asian eyes with passionate gaze, strong defined brows, attractive monolid or double eyelid",
+                "outfit": "casually stylish Korean school uniform with loose tie, partially unbuttoned collar, effortlessly cool K-drama look",
+                "features": "handsome sharp jawline with East Asian bone structure, attractive features, clear healthy fair skin, athletic lean build, brooding handsome Korean actor look",
+            },
+            "cool": {
+                "hair": "elegantly styled dark ash brown hair swept back, sophisticated modern Korean hairstyle, striking color",
+                "eyes": "piercing cool dark brown eyes with mysterious depth, intense captivating Asian gaze",
+                "outfit": "sleek black turtleneck sweater, minimalist silver earring, refined modern K-fashion style",
+                "features": "sharp handsome East Asian features, pale flawless skin, tall elegant build, enigmatic charisma, Korean model-like bone structure",
+            },
+            "cute": {
+                "hair": "soft fluffy dark brown hair with gentle natural texture, warm highlights, boyish charming K-pop style",
+                "eyes": "warm bright dark brown eyes full of kindness, friendly gentle gaze, soft Asian eye features",
+                "outfit": "cozy casual cream-colored hoodie with simple design, comfortable Korean streetwear style",
+                "features": "soft handsome East Asian features, warm healthy fair skin tone, friendly charming smile, lean build, Korean boy-next-door appeal",
+            },
+            "sexy": {
+                "hair": "perfectly styled dark black hair with modern two-block cut, sleek and sophisticated, naturally attractive Korean style",
+                "eyes": "intense smoldering dark eyes with confident allure, strong masculine Asian gaze",
+                "outfit": "fitted dark dress shirt with top buttons undone, revealing elegant collarbone, refined masculine K-drama style",
+                "features": "strong defined jawline with East Asian bone structure, confident attractive smirk, athletic toned build, healthy fair skin, devastatingly handsome Korean actor look",
+            },
+            "pure": {
+                "hair": "neatly styled soft black hair with gentle texture, clean classic Korean hairstyle, well-groomed appearance",
+                "eyes": "warm gentle dark brown eyes full of sincerity, kind trustworthy gaze, soft Asian eye shape",
+                "outfit": "clean crisp white button-up shirt, simple elegant style, neat well-put-together appearance",
+                "features": "gentle handsome East Asian features, clear healthy fair skin, warm genuine smile, lean fit build, honest trustworthy Korean appearance",
+            },
+        },
+    }
+
+    gender_key = "female" if gender == "female" else "male"
+    return designs.get(gender_key, designs["female"]).get(style, designs[gender_key]["cute"])
+
+
 def build_expression_prompt(
     gender: str,
     style: str,
@@ -29,38 +117,198 @@ def build_expression_prompt(
     expression: str,
 ) -> str:
     """캐릭터 설정 기반 표정 이미지 생성 프롬프트 생성."""
-    style_descriptions = {
-        "tsundere": "with a tsundere personality, initially cold but secretly caring",
-        "cool": "with a cool and calm demeanor, mysterious and composed",
-        "cute": "with a cute and cheerful personality, bright and adorable",
-        "sexy": "with an elegant and attractive appearance, confident and alluring",
-        "pure": "with an innocent and pure personality, gentle and sincere",
+
+    # 캐릭터 고정 디자인 가져오기
+    design = get_character_design(gender, style)
+
+    # 표정별 상세 설명
+    expression_details = {
+        "neutral": {
+            "face": "serene calm expression with soft natural gentle smile, relaxed facial muscles, approachable friendly demeanor",
+            "mood": "peaceful, content, warmly approachable, quietly confident",
+            "eyes": "looking directly at viewer with soft gentle gaze, warm and inviting eye contact, relaxed eyelids",
+        },
+        "happy": {
+            "face": "radiant genuine bright smile showing pure joy, raised cheeks creating beautiful smile lines, glowing happy expression",
+            "mood": "overflowing with joy, warmth and delight, infectious happiness, cheerful energy",
+            "eyes": "sparkling brilliantly with happiness, eyes slightly crescent-shaped from genuine smiling, joyful eye smile",
+        },
+        "sad": {
+            "face": "tender melancholic expression, slightly downturned lips, vulnerable beautiful sadness, emotional depth",
+            "mood": "gentle melancholy, touching vulnerability, bittersweet emotion, poignant beauty",
+            "eyes": "glistening with unshed tears, deep sorrowful gaze looking slightly downward, emotional depth in eyes",
+        },
+        "jealous": {
+            "face": "adorable pouty expression, slightly puffed cheeks, furrowed brows, cute frustrated look",
+            "mood": "endearingly jealous, playfully annoyed, possessive affection, tsundere energy",
+            "eyes": "narrowed with cute irritation, looking away with mock annoyance, jealous sidelong glance",
+        },
+        "shy": {
+            "face": "beautifully flushed pink cheeks, adorable bashful smile, head tilted slightly, charmingly flustered",
+            "mood": "sweetly embarrassed, heart-fluttering nervousness, endearing shyness, innocent charm",
+            "eyes": "shyly avoiding direct eye contact, glancing through lashes, coy bashful look with pink tinted cheeks",
+        },
+        "excited": {
+            "face": "flushed pink cheeks with excited smile, heart-fluttering anticipation, slightly parted lips from excitement, lovingly flustered expression",
+            "mood": "butterflies in stomach feeling, romantic excitement mixed with shyness, heart pounding anticipation, lovestruck and slightly embarrassed",
+            "eyes": "sparkling eyes filled with adoration and nervous excitement, shy but eager gaze, eyes shimmering with romantic anticipation, looking at viewer with loving expectation",
+        },
     }
 
-    expression_descriptions = {
-        "neutral": "with a neutral, calm expression",
-        "happy": "with a happy, joyful smile",
-        "sad": "with a sad, melancholic expression",
-        "jealous": "with a jealous, slightly annoyed look",
-        "shy": "with a shy, blushing expression",
-        "excited": "with an excited, enthusiastic expression",
+    # 그림체별 상세 설명
+    art_style_details = {
+        "anime": {
+            "style": "modern Japanese anime art style, visual novel CG quality, anime key visual",
+            "rendering": "cel-shaded coloring with clean precise outlines, flat color areas with soft airbrush shading, vibrant saturated colors, anime-style gradient shading",
+            "details": "large sparkling anime eyes with detailed highlights and reflections, stylized small nose and mouth, anime facial proportions, perfectly smooth flawless skin, detailed shiny hair with individual strands",
+            "quality": "masterpiece quality anime illustration, trending on Pixiv, professional Japanese game CG, detailed anime art, 8k resolution",
+            "avoid": "DO NOT use: realistic proportions, photorealistic rendering, western cartoon style, 3D render look",
+        },
+        "realistic": {
+            "style": "photorealistic portrait photography style, hyperrealistic digital art, lifelike human portrait",
+            "rendering": "photorealistic skin rendering with subsurface scattering, natural soft studio lighting, realistic shadows and highlights, cinematic color grading, depth of field",
+            "details": "realistic human facial proportions, natural skin texture with pores, realistic eye anatomy with detailed iris, natural lip texture, realistic hair with individual strands and natural shine",
+            "quality": "8k ultra HD, professional photography quality, shot on Canon EOS R5, 85mm portrait lens, magazine cover quality, hyperdetailed, trending on ArtStation",
+            "avoid": "DO NOT use: anime style, cartoon style, cel-shading, stylized features, large unrealistic eyes, flat coloring",
+        },
+        "watercolor": {
+            "style": "traditional watercolor painting on textured paper, fine art watercolor illustration, romantic watercolor portrait",
+            "rendering": "visible watercolor brush strokes, wet-on-wet technique, soft color bleeding at edges, transparent layered washes, granulation texture, paper texture visible",
+            "details": "soft dreamy features, gentle color transitions, artistic color choices, delicate facial features, ethereal glow, loose artistic hair rendering",
+            "quality": "museum quality watercolor painting, professional traditional art, award-winning watercolor illustration, beautiful fine art piece",
+            "avoid": "DO NOT use: digital art look, sharp edges, cel-shading, anime style, photorealistic rendering",
+        },
     }
 
-    art_style_descriptions = {
-        "anime": "in anime art style, vibrant colors, clean lines",
-        "realistic": "in realistic art style, detailed and lifelike",
-        "watercolor": "in watercolor art style, soft and dreamy",
-    }
+    expr = expression_details.get(expression, expression_details["neutral"])
+    art = art_style_details.get(art_style, art_style_details["anime"])
 
-    style_desc = style_descriptions.get(style, style_descriptions["cute"])
-    expression_desc = expression_descriptions.get(expression, expression_descriptions["neutral"])
-    art_desc = art_style_descriptions.get(art_style, art_style_descriptions["anime"])
+    # 성별 표현 (동양인 명시)
+    gender_word = "young East Asian woman, Korean or Japanese" if gender == "female" else "young East Asian man, Korean or Japanese"
 
-    prompt = f"""A portrait of a {gender} character {style_desc}, {expression_desc}, {art_desc}.
-High quality, detailed, suitable for a dating simulation game.
-Upper body shot, looking at the viewer, soft lighting."""
+    # avoid 항목 가져오기
+    avoid_text = art.get('avoid', '')
+
+    prompt = f"""Create a beautiful {art['style']} portrait.
+
+SUBJECT: An attractive {gender_word} with the following features:
+- Ethnicity: MUST be East Asian (Korean, Japanese, or Chinese) - this is mandatory
+- Hair: {design['hair']}
+- Eyes: {design['eyes']}
+- Outfit: {design['outfit']}
+- Physical features: {design['features']}
+
+CRITICAL ETHNICITY REQUIREMENT:
+- The character MUST have distinctly East Asian facial features
+- Korean/Japanese/Chinese appearance with appropriate bone structure
+- Asian eye shape (monolid or subtle double eyelid)
+- Fair to light skin tone typical of East Asians
+- DO NOT create Western/Caucasian features
+
+EXPRESSION AND EMOTION:
+- Face: {expr['face']}
+- Overall mood: {expr['mood']}
+- Eyes showing: {expr['eyes']}
+
+MANDATORY ART STYLE REQUIREMENTS:
+{art['style']}
+{art['rendering']}
+{art['details']}
+{art['quality']}
+
+COMPOSITION AND LIGHTING:
+- Upper body portrait, chest-up framing
+- Character looking at the viewer
+- Beautiful soft lighting that enhances the {art_style} aesthetic
+- Aesthetically pleasing gradient background (soft pink, lavender, or warm tones)
+- Perfect composition, visually stunning
+
+IMPORTANT - MUST AVOID:
+{avoid_text}
+DO NOT include: Western/Caucasian features, text, watermarks, signatures, multiple people, extra limbs, deformed features, bad anatomy, ugly, blurry, low quality"""
 
     return prompt
+
+
+async def generate_character_image(
+    gender: str,
+    style: str,
+    art_style: str,
+    expression: str,
+) -> str:
+    """
+    Gemini API를 사용하여 캐릭터 이미지 생성
+
+    Args:
+        gender: 캐릭터 성별 (male/female)
+        style: 캐릭터 성격 (tsundere/cool/cute/sexy/pure)
+        art_style: 그림체 (anime/realistic/watercolor)
+        expression: 표정 (neutral/happy/sad/jealous/shy/excited)
+
+    Returns:
+        생성된 이미지의 URL
+    """
+    prompt = build_expression_prompt(gender, style, art_style, expression)
+
+    # Imagen 4.0 모델 사용
+    models_to_try = [
+        'imagen-4.0-generate-001',
+        'imagen-4.0-fast-generate-001',
+    ]
+
+    for model_name in models_to_try:
+        try:
+            print(f"Trying image generation with model: {model_name}")
+            response = client.models.generate_images(
+                model=model_name,
+                prompt=prompt,
+                config=types.GenerateImagesConfig(
+                    number_of_images=1,
+                ),
+            )
+
+            if response.generated_images and len(response.generated_images) > 0:
+                image_id = str(uuid.uuid4())
+                image_filename = f"{image_id}.png"
+                image_path = IMAGES_DIR / image_filename
+
+                # 이미지 데이터 가져오기
+                generated_image = response.generated_images[0]
+                if hasattr(generated_image, 'image') and generated_image.image:
+                    image_bytes = generated_image.image.image_bytes
+                    if image_bytes and len(image_bytes) > 100:
+                        with open(image_path, 'wb') as f:
+                            f.write(image_bytes)
+                        print(f"Image generated successfully with {model_name}, size: {len(image_bytes)} bytes")
+                        return f"/static/images/characters/{image_filename}"
+                    else:
+                        print(f"Image data too small: {len(image_bytes) if image_bytes else 0} bytes")
+                else:
+                    print(f"No image data in response from {model_name}")
+            else:
+                print(f"No generated_images in response from {model_name}")
+
+        except Exception as e:
+            print(f"Model {model_name} failed: {e}")
+            continue
+
+    # 모든 모델 실패 시 placeholder 반환
+    print(f"All image generation models failed, using placeholder")
+    return _get_placeholder_url(expression, gender, style)
+
+
+def _get_placeholder_url(expression: str, gender: str, style: str) -> str:
+    """이미지 생성 실패 시 placeholder URL 반환"""
+    colors = {
+        "neutral": "B0C4DE",
+        "happy": "FFD700",
+        "sad": "87CEEB",
+        "jealous": "FF6B6B",
+        "shy": "FFB6C1",
+        "excited": "FF69B4",
+    }
+    color = colors.get(expression, "FFB6C1")
+    return f"https://placehold.co/512x512/{color}/333333?text={expression}+{gender}+{style}"
 
 
 # 캐릭터 스타일 설명 (한국어)
@@ -170,9 +418,11 @@ async def generate_scene_content(
 JSON만 출력하세요. 다른 설명은 필요 없습니다."""
 
     try:
-        # Gemini API 호출
-        model = genai.GenerativeModel('gemini-2.0-flash')
-        response = model.generate_content(prompt)
+        # Gemini API 호출 (새로운 SDK)
+        response = client.models.generate_content(
+            model='gemini-2.0-flash',
+            contents=prompt,
+        )
 
         # 응답 파싱
         response_text = response.text.strip()
@@ -195,7 +445,7 @@ JSON만 출력하세요. 다른 설명은 필요 없습니다."""
 
         content = json.loads(response_text)
 
-        # 이미지 URL (placeholder - 실제로는 Gemini Imagen 사용)
+        # 이미지 URL (placeholder - 실제로는 character_expressions에서 가져옴)
         image_url = f"https://placehold.co/1024x768/FFB6C1/333333?text=Turn+{scene_number}"
 
         return {
