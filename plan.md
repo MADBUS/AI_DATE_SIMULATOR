@@ -1,8 +1,8 @@
 # AI Love Simulator - Development Plan
 
-> **기술 스택**: Next.js 14 + FastAPI + PostgreSQL + Redis  
-> **기간**: 3주 (2026-01-14 ~ 2026-02-04)  
-> **목표**: AI 이미지 생성 + 호감도 시스템 + 엔딩 시스템
+> **기술 스택**: Next.js 14 + FastAPI + PostgreSQL + Redis + Gemini API
+> **기간**: 3주 (2026-01-14 ~ 2026-02-04)
+> **목표**: AI 이미지 생성 + 호감도 시스템 + 엔딩 시스템 + 특별 이벤트
 
 ---
 
@@ -10,8 +10,9 @@
 1. [데이터베이스 구조](#1-데이터베이스-구조)
 2. [주차별 백로그](#2-주차별-백로그)
 3. [상세 태스크](#3-상세-태스크)
+4. [추가 구현 사항](#4-추가-구현-사항)
 
----/해 
+---
 
 ## 1. 데이터베이스 구조
 
@@ -79,11 +80,11 @@ CREATE TABLE character_settings (
     created_at TIMESTAMP DEFAULT NOW()
 );
 
--- 4. 표정 이미지
+-- 4. 표정 이미지 (7종)
 CREATE TABLE character_expressions (
     id UUID PRIMARY KEY,
     setting_id UUID REFERENCES character_settings(id),
-    expression_type VARCHAR(20), -- 'neutral', 'happy', 'sad', 'jealous', 'shy', 'excited'
+    expression_type VARCHAR(20), -- 'neutral', 'happy', 'sad', 'jealous', 'shy', 'excited', 'disgusted'
     image_url TEXT,
     created_at TIMESTAMP DEFAULT NOW()
 );
@@ -135,21 +136,28 @@ CREATE TABLE minigame_results (
 - [x] 캐릭터 설정 DB 저장
 
 ### Week 2: AI 통합 + 표정 시스템
-- [x] Gemini API 연동
-- [x] 표정 이미지 6종 사전 생성
-- [x] 미니게임: 눈 마주치기 (로딩 대기용) - 백엔드 결과 저장 API 완료
+- [x] Gemini API 연동 (Imagen 4.0)
+- [x] 표정 이미지 7종 사전 생성 (neutral, happy, sad, jealous, shy, excited, disgusted)
+- [x] 미니게임: 하트 터치 게임 (프론트엔드 구현 완료)
 - [x] MBTI 기반 선택지 생성
-- [ ] 게임 화면 UI (표정 전환)
-- [ ] 호감도 게이지
+- [x] 게임 화면 UI (표정 전환)
+- [x] 호감도 게이지
+- [x] 랜덤 캐릭터 디자인 시스템 (매 게임 새로운 캐릭터)
+- [x] 캐릭터 일관성 유지 (동일 디자인으로 모든 표정 생성)
+- [x] 대화 흐름 유지 (이전 선택지 컨텍스트 반영)
+- [x] 감정-선택지 매칭 가이드라인 개선
 
 ### Week 3: 특별 이벤트 + 결제 + 배포
-- [x] 특별 이벤트 랜덤 발생
+- [x] 특별 이벤트 주기적 발생 (5턴마다)
+- [x] 전신 이벤트 씬 이미지 생성 (Gemini Imagen)
+- [x] 미니게임 결과 API (성공: +10~15, 실패: -2~3)
 - [x] 서비스 컷 blur/원본 처리 (결제 상태)
-- [x] 마이페이지 (MBTI 수정) - 이미 완료
+- [x] 마이페이지 (MBTI 수정)
 - [x] 엔딩 화면
 - [x] 사용자 갤러리 (세션 삭제 후에도 이미지 보관)
-- [x] 게임 저장/불러오기 - 이어하기 기능으로 완료
+- [x] 게임 저장/불러오기 - 이어하기 기능
 - [x] Redis 캐싱
+- [x] 씬 전환 시 부드러운 전환 효과 (로딩 화면 제거)
 - [ ] Vercel 배포 (프론트)
 - [ ] Railway 배포 (백엔드)
 
@@ -351,20 +359,25 @@ async def generate_expression_images(character_settings):
 **담당**: 개발자
 
 **API**:
-- `POST /api/games/{session_id}/generate-expressions` - 6개 표정 생성
+- `POST /api/expressions/{session_id}/generate-expressions` - 7개 표정 생성
 
-**표정 종류**:
+**표정 종류** (7종):
 1. neutral (일반)
 2. happy (기쁜)
 3. sad (슬픈)
 4. jealous (질투)
 5. shy (부끄러운)
-6. excited (흥분)
+6. excited (설렘)
+7. disgusted (극혐)
 
 **완료 조건**:
 - ✅ 캐릭터 설정 기반 프롬프트 생성
-- ✅ 6개 이미지 생성 및 DB 저장
+- ✅ 7개 이미지 생성 및 DB 저장
 - ✅ 생성 중 미니게임 표시
+- ✅ 동양인(한국/일본인) 외모 프롬프트
+- ✅ 그림체별 상세 프롬프트 (anime/realistic/watercolor)
+- ✅ 랜덤 캐릭터 디자인 생성
+- ✅ 동일 캐릭터 디자인으로 모든 표정 생성 (일관성 유지)
 
 ---
 
@@ -487,26 +500,45 @@ if scene >= 10:
 
 **API**:
 - `POST /api/scenes/{session_id}/check-event` - 이벤트 발생 체크
+- `POST /api/scenes/{session_id}/minigame-result` - 미니게임 결과 제출
 
-**로직**:
+**로직** (5턴마다 주기적 발생):
 ```python
-async def check_special_event(session_id, scene_number):
-    """10-15% 확률로 특별 이벤트 발생"""
-    if random.random() < 0.15:  # 15% 확률
-        # 서비스 컷 이미지 생성
-        special_image = await generate_special_image(session_id)
+SPECIAL_EVENT_INTERVAL = 5  # 5턴마다
+
+async def check_special_event(session_id):
+    """5턴마다 특별 이벤트 발생 (5, 10, 15, 20...)"""
+    if session.current_scene > 0 and session.current_scene % SPECIAL_EVENT_INTERVAL == 0:
+        # neutral 표정 이미지 참조로 캐릭터 일관성 유지
+        # 전신 이벤트 씬 이미지 생성
+        special_image, event_description = await generate_special_event_image(...)
         return {
             "is_special_event": True,
             "special_image_url": special_image,
+            "event_description": event_description,
             "show_minigame": True
         }
     return {"is_special_event": False}
 ```
 
+**이벤트 타입** (5종):
+1. romantic_date - 로맨틱한 데이트 장면
+2. surprise_gift - 깜짝 선물 장면
+3. rain_shelter - 비를 피하는 장면
+4. festival - 축제 장면
+5. confession - 고백 장면
+
+**미니게임 결과**:
+- 성공: +10 ~ +15 호감도 대폭 상승
+- 실패: -2 ~ -3 호감도 소폭 하락
+
 **완료 조건**:
-- ✅ 랜덤 확률 이벤트 발생
-- ✅ 서비스 컷 이미지 생성
-- ✅ 이미지 생성 중 미니게임 표시
+- ✅ 5턴마다 주기적 이벤트 발생
+- ✅ 전신 이벤트 씬 이미지 생성 (Gemini Imagen)
+- ✅ 캐릭터 일관성 유지 (neutral 이미지 참조)
+- ✅ 미니게임 (하트 터치 게임) - 8초 내 7개 터치
+- ✅ 미니게임 결과 API
+- ✅ 이벤트 이미지 모달 표시
 
 ---
 
@@ -680,31 +712,68 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 ## 5. 체크리스트
 
 ### Week 1: 인증 + 사용자/캐릭터 설정
-- [ ] 프로젝트 초기화
-- [ ] DB 스키마 생성 (7개 테이블)
-- [ ] Google OAuth + MBTI 온보딩
-- [ ] 연애 대상자 커스터마이징 UI
-- [ ] 게임 세션 생성
+- [x] 프로젝트 초기화
+- [x] DB 스키마 생성 (7개 테이블)
+- [x] Google OAuth + MBTI 온보딩
+- [x] 연애 대상자 커스터마이징 UI
+- [x] 게임 세션 생성
 
 ### Week 2: AI 통합 + 표정 시스템
-- [ ] Gemini API 설정
-- [ ] 표정 이미지 6종 사전 생성
-- [ ] 미니게임: 눈 마주치기
-- [ ] MBTI 기반 선택지 생성
-- [ ] 게임 화면 UI (표정 전환)
-- [ ] 선택 처리 + 호감도
+- [x] Gemini API 설정 (Imagen 4.0)
+- [x] 표정 이미지 7종 사전 생성
+- [x] 미니게임: 하트 터치 게임
+- [x] MBTI 기반 선택지 생성
+- [x] 게임 화면 UI (표정 전환)
+- [x] 선택 처리 + 호감도
+- [x] 랜덤 캐릭터 디자인
+- [x] 캐릭터 일관성 유지
+- [x] 대화 흐름 유지
 
 ### Week 3: 특별 이벤트 + 결제 + 배포
-- [ ] 특별 이벤트 시스템
-- [ ] 결제 상태 + blur 처리
-- [ ] 마이페이지
-- [ ] 엔딩 화면
-- [ ] 게임 저장/불러오기
-- [ ] Redis 캐싱
+- [x] 특별 이벤트 시스템 (5턴마다)
+- [x] 전신 이벤트 씬 이미지 생성
+- [x] 미니게임 결과 API
+- [x] 결제 상태 + blur 처리
+- [x] 마이페이지
+- [x] 엔딩 화면
+- [x] 게임 저장/불러오기
+- [x] Redis 캐싱
+- [x] 부드러운 씬 전환 효과
 - [ ] Vercel 배포
 - [ ] Railway 배포
 - [ ] 최종 테스트
 
 ---
 
-**Last Updated**: 2026-01-20
+---
+
+## 4. 추가 구현 사항
+
+### 이미지 생성 개선
+- [x] **그림체별 상세 프롬프트**: anime/realistic/watercolor 각 스타일별 상세 설명 및 avoid 항목 추가
+- [x] **동양인 외모**: "East Asian, Korean or Japanese" 명시, Western features 금지
+- [x] **캐릭터 디자인 랜덤화**: 머리카락, 눈, 의상, 특징 조합으로 매번 새로운 캐릭터
+- [x] **캐릭터 일관성**: 동일한 character_design을 모든 표정/이벤트에 전달
+- [x] **표정 상세화**: 각 표정별 얼굴, 분위기, 눈 표현 상세 설명
+
+### 대화 시스템 개선
+- [x] **대화 흐름 유지**: previous_choice, previous_dialogue로 컨텍스트 전달
+- [x] **주제 일관성**: 첫 턴에만 상황/주제 설정, 이후 흐름 유지
+- [x] **감정-선택지 매칭**: 선택지 내용에 맞는 감정 타입 가이드라인 강화
+- [x] **선택지 순서 섞기**: 긍정/중립/부정 순서 랜덤 배치
+- [x] **점수 밸런스 조정**: 긍정 +1~2, 부정 -5~6
+
+### 프론트엔드 개선
+- [x] **하트 미니게임**: HeartMinigame.tsx - 8초 내 7개 터치
+- [x] **이벤트 모달**: SpecialEventModal.tsx - 전신 이벤트 이미지 표시
+- [x] **부드러운 씬 전환**: 로딩 화면 제거, 페이드 효과 적용
+- [x] **표정 전환**: 선택지에 따른 캐릭터 표정 변경
+
+### Backlog 파일
+- `backlog/001-user-mbti.md` - 사용자 MBTI 시스템
+- `backlog/002-image-prompt-enhancement.md` - 이미지 프롬프트 개선
+- `backlog/003-special-event-system.md` - 특별 이벤트 시스템
+
+---
+
+**Last Updated**: 2026-01-22
