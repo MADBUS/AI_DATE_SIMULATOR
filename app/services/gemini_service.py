@@ -36,79 +36,128 @@ EXPRESSION_TYPES = [
 
 def get_character_design(gender: str, style: str) -> dict:
     """
-    캐릭터 성격과 성별에 따른 일관된 외모 디자인 반환.
-    동일한 gender+style 조합은 항상 같은 외모를 가짐.
+    캐릭터 외모를 랜덤하게 생성.
+    매번 새로운 조합의 캐릭터가 생성됨.
     """
-    # 성격별 캐릭터 디자인 (성별에 따라 다름) - 동양인 특징 포함
-    designs = {
-        "female": {
-            "tsundere": {
-                "hair": "beautiful long twin-tails hairstyle, vibrant crimson red hair with subtle pink gradient highlights, silky shiny straight Asian hair texture, cute hair ribbons",
-                "eyes": "sharp expressive amber-gold Asian eyes with monolid or subtle double eyelid, long eyelashes, fierce yet attractive gaze",
-                "outfit": "stylish Korean/Japanese school uniform with red ribbon tie, crisp white blouse, fitted blazer, fashionable accessories",
-                "features": "flawless porcelain white skin, delicate small Asian nose, soft facial structure, perfectly shaped pink lips, slim petite figure, elegant neck, beautiful East Asian facial features",
-            },
-            "cool": {
-                "hair": "gorgeous long straight jet-black hair flowing past shoulders, elegant side-swept bangs framing face, lustrous silky Asian hair shine",
-                "eyes": "mesmerizing deep dark brown eyes with mysterious allure, elegant Asian eye shape, sharp elegant gaze, thick dark lashes",
-                "outfit": "sophisticated dark navy blazer over elegant blouse, minimalist silver necklace, refined K-fashion style",
-                "features": "flawless pale luminous Korean-style skin, refined elegant East Asian features, graceful long neck, sophisticated beauty, slim elegant proportions",
-            },
-            "cute": {
-                "hair": "adorable short fluffy dark brown hair with cute decorative hair clips and accessories, soft bouncy texture, playful Korean idol style",
-                "eyes": "large sparkling dark brown eyes full of life, innocent doe-eyed look with aegyo-sal, cute Asian eye shape",
-                "outfit": "lovely pastel pink sweater with cute heart patterns, adorable K-fashion accessories, sweet feminine style",
-                "features": "soft round baby face with East Asian features, naturally rosy cheeks, cute small Asian nose, sweet pink lips, petite adorable figure, youthful Korean ulzzang glow",
-            },
-            "sexy": {
-                "hair": "luxurious long wavy dark brown hair cascading elegantly, glamorous soft waves, silky lustrous Asian hair shine",
-                "eyes": "captivating deep dark brown eyes with sultry allure, elegant Asian eye shape, thick long lashes, seductive confident gaze",
-                "outfit": "elegant off-shoulder evening dress, tasteful gold jewelry, sophisticated glamorous style",
-                "features": "flawless radiant Korean glass skin, alluring beauty mark near lips, elegant mature East Asian features, graceful feminine figure, stunning Asian beauty",
-            },
-            "pure": {
-                "hair": "lovely medium-length natural black hair with gentle natural waves, healthy beautiful shine, soft Asian hair texture",
-                "eyes": "innocent clear dark brown eyes with gentle warmth, soft kind gaze, natural Asian eye shape with subtle aegyo-sal",
-                "outfit": "beautiful simple white sundress with delicate lace details, subtle elegant accessories, pure feminine style",
-                "features": "naturally beautiful clear Korean-style skin, soft gentle East Asian features, sweet natural smile, graceful slim figure, wholesome natural Asian beauty",
-            },
-        },
-        "male": {
-            "tsundere": {
-                "hair": "stylishly messy dark brown hair with natural texture, attractive tousled K-pop idol look, slight layered styling",
-                "eyes": "intense sharp dark brown Asian eyes with passionate gaze, strong defined brows, attractive monolid or double eyelid",
-                "outfit": "casually stylish Korean school uniform with loose tie, partially unbuttoned collar, effortlessly cool K-drama look",
-                "features": "handsome sharp jawline with East Asian bone structure, attractive features, clear healthy fair skin, athletic lean build, brooding handsome Korean actor look",
-            },
-            "cool": {
-                "hair": "elegantly styled dark ash brown hair swept back, sophisticated modern Korean hairstyle, striking color",
-                "eyes": "piercing cool dark brown eyes with mysterious depth, intense captivating Asian gaze",
-                "outfit": "sleek black turtleneck sweater, minimalist silver earring, refined modern K-fashion style",
-                "features": "sharp handsome East Asian features, pale flawless skin, tall elegant build, enigmatic charisma, Korean model-like bone structure",
-            },
-            "cute": {
-                "hair": "soft fluffy dark brown hair with gentle natural texture, warm highlights, boyish charming K-pop style",
-                "eyes": "warm bright dark brown eyes full of kindness, friendly gentle gaze, soft Asian eye features",
-                "outfit": "cozy casual cream-colored hoodie with simple design, comfortable Korean streetwear style",
-                "features": "soft handsome East Asian features, warm healthy fair skin tone, friendly charming smile, lean build, Korean boy-next-door appeal",
-            },
-            "sexy": {
-                "hair": "perfectly styled dark black hair with modern two-block cut, sleek and sophisticated, naturally attractive Korean style",
-                "eyes": "intense smoldering dark eyes with confident allure, strong masculine Asian gaze",
-                "outfit": "fitted dark dress shirt with top buttons undone, revealing elegant collarbone, refined masculine K-drama style",
-                "features": "strong defined jawline with East Asian bone structure, confident attractive smirk, athletic toned build, healthy fair skin, devastatingly handsome Korean actor look",
-            },
-            "pure": {
-                "hair": "neatly styled soft black hair with gentle texture, clean classic Korean hairstyle, well-groomed appearance",
-                "eyes": "warm gentle dark brown eyes full of sincerity, kind trustworthy gaze, soft Asian eye shape",
-                "outfit": "clean crisp white button-up shirt, simple elegant style, neat well-put-together appearance",
-                "features": "gentle handsome East Asian features, clear healthy fair skin, warm genuine smile, lean fit build, honest trustworthy Korean appearance",
-            },
-        },
+    import random
+
+    # 공통 동양인 특징
+    asian_features = "East Asian facial features, Korean/Japanese appearance"
+
+    # 여성 옵션
+    female_options = {
+        "hair_colors": [
+            "jet black", "dark brown", "chestnut brown", "dark auburn",
+            "burgundy brown", "natural black with subtle highlights",
+            "deep chocolate brown", "warm caramel brown", "ash brown",
+        ],
+        "hair_styles": [
+            "long straight hair flowing past shoulders",
+            "medium-length hair with gentle waves",
+            "short bob cut with bangs",
+            "long wavy hair with soft curls",
+            "shoulder-length layered cut",
+            "long hair with side-swept bangs",
+            "cute twin-tails with ribbons",
+            "elegant ponytail",
+            "half-up half-down style",
+            "long hair with see-through bangs",
+        ],
+        "eye_colors": [
+            "deep dark brown", "warm brown", "dark chocolate brown",
+            "soft hazel brown", "clear brown with golden flecks",
+        ],
+        "outfits": [
+            "elegant blouse with high-waisted skirt, K-fashion style",
+            "cozy oversized sweater, cute casual look",
+            "stylish school uniform with ribbon tie",
+            "simple white dress with delicate details",
+            "trendy crop top with high-waisted jeans",
+            "sophisticated blazer over feminine top",
+            "cute cardigan with pleated skirt",
+            "elegant off-shoulder top, refined style",
+            "casual hoodie dress, comfortable chic",
+            "romantic floral blouse with fitted pants",
+        ],
+        "features": [
+            "flawless porcelain skin, delicate features, sweet smile",
+            "clear glass skin, soft round face, cute dimples",
+            "radiant fair skin, elegant features, graceful neck",
+            "naturally beautiful skin, gentle features, warm expression",
+            "luminous Korean-style skin, refined features, attractive smile",
+        ],
     }
 
-    gender_key = "female" if gender == "female" else "male"
-    return designs.get(gender_key, designs["female"]).get(style, designs[gender_key]["cute"])
+    # 남성 옵션
+    male_options = {
+        "hair_colors": [
+            "jet black", "dark brown", "natural black",
+            "deep brown", "ash brown", "dark chocolate",
+            "soft black", "warm brown", "cool-toned brown",
+        ],
+        "hair_styles": [
+            "stylishly messy textured hair, K-pop idol style",
+            "neatly styled comma hair, clean look",
+            "modern two-block cut, sophisticated style",
+            "soft fluffy hair, boyish charm",
+            "slicked back hair, refined look",
+            "natural layered cut, effortless style",
+            "textured fringe, youthful look",
+            "side-parted hair, classic handsome",
+            "tousled wavy hair, casual attractive",
+            "clean short cut, neat appearance",
+        ],
+        "eye_colors": [
+            "deep dark brown", "intense brown", "warm chocolate brown",
+            "sharp dark eyes", "gentle brown",
+        ],
+        "outfits": [
+            "crisp white shirt, clean classic style",
+            "casual hoodie, comfortable streetwear",
+            "fitted black turtleneck, sleek modern look",
+            "stylish blazer over t-shirt, smart casual",
+            "denim jacket with simple tee, effortless cool",
+            "knit sweater, warm cozy look",
+            "school uniform with loose tie, youthful charm",
+            "leather jacket, edgy attractive style",
+            "simple polo shirt, preppy look",
+            "fitted henley shirt, casual masculine",
+        ],
+        "features": [
+            "sharp jawline, handsome features, confident look",
+            "soft handsome features, warm smile, friendly appearance",
+            "defined features, clear skin, attractive gaze",
+            "gentle masculine features, kind eyes, trustworthy look",
+            "chiseled features, fair skin, charismatic presence",
+        ],
+    }
+
+    # 성별에 따른 옵션 선택
+    options = female_options if gender == "female" else male_options
+
+    # 성격에 따른 스타일 힌트
+    style_hints = {
+        "tsundere": "with a hint of tsundere charm, slightly fierce expression base",
+        "cool": "with cool mysterious aura, composed elegant presence",
+        "cute": "with adorable sweet charm, bright youthful energy",
+        "sexy": "with elegant alluring presence, confident attractive aura",
+        "pure": "with innocent pure charm, gentle warm presence",
+    }
+
+    # 랜덤 선택
+    hair_color = random.choice(options["hair_colors"])
+    hair_style = random.choice(options["hair_styles"])
+    eye_color = random.choice(options["eye_colors"])
+    outfit = random.choice(options["outfits"])
+    features = random.choice(options["features"])
+    style_hint = style_hints.get(style, style_hints["cute"])
+
+    return {
+        "hair": f"{hair_style}, beautiful {hair_color} hair, silky shiny Asian hair texture",
+        "eyes": f"expressive {eye_color} Asian eyes with attractive gaze, natural eyelashes",
+        "outfit": outfit,
+        "features": f"{features}, {asian_features}, {style_hint}",
+    }
 
 
 def build_expression_prompt(
