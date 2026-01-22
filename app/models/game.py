@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import String, Integer, Text, DateTime, ForeignKey, CheckConstraint, JSON
+from sqlalchemy import String, Integer, Text, DateTime, ForeignKey, CheckConstraint, JSON, Boolean
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -25,6 +25,10 @@ class GameSession(Base):
         String(20), default="playing"
     )  # 'playing', 'happy_ending', 'sad_ending'
     save_slot: Mapped[int] = mapped_column(Integer, default=1)
+    is_stolen: Mapped[bool] = mapped_column(Boolean, default=False)  # PvP에서 뺏긴 캐릭터 여부
+    original_owner_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )  # 뺏긴 캐릭터의 원래 소유자
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
@@ -35,7 +39,8 @@ class GameSession(Base):
     )
 
     # Relationships
-    user = relationship("User", back_populates="game_sessions")
+    user = relationship("User", back_populates="game_sessions", foreign_keys=[user_id])
+    original_owner = relationship("User", foreign_keys=[original_owner_id])
     character = relationship("Character", back_populates="game_sessions")
     scenes = relationship("Scene", back_populates="session")
     character_setting = relationship("CharacterSetting", back_populates="session", uselist=False)

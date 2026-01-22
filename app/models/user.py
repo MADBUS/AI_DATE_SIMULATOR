@@ -22,5 +22,9 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     # Relationships
-    game_sessions = relationship("GameSession", back_populates="user")
+    game_sessions = relationship(
+        "GameSession",
+        back_populates="user",
+        foreign_keys="[GameSession.user_id]"
+    )
     gallery_images = relationship("UserGallery", back_populates="user")
