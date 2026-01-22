@@ -411,12 +411,16 @@ async def generate_scene_content(
 
 ## 선택지 규칙
 - 각 선택지는 사용자의 MBTI 성향({user_style})을 반영해야 합니다.
-- 첫 번째 선택지: 호감도를 올리는 긍정적 선택 (delta: +5 ~ +15)
-  - 감정: happy, shy, excited 중 상황에 맞게 선택
-- 두 번째 선택지: 중립적이거나 장난스러운 선택 (delta: -2 ~ +5)
-  - 감정: neutral, jealous, shy 중 상황에 맞게 선택
-- 세 번째 선택지: 호감도를 낮추는 부정적 선택 (delta: -15 ~ -5)
-  - 감정: sad, jealous, neutral 중 상황에 맞게 선택
+- 3개의 선택지 중 하나는 긍정적, 하나는 중립적, 하나는 부정적이어야 합니다.
+- 긍정적 선택: 호감도 +1 ~ +2 (감정: happy, shy, excited)
+- 중립적 선택: 호감도 -1 ~ +1 (감정: neutral, shy)
+- 부정적 선택: 호감도 -5 ~ -6 (감정: sad, jealous)
+
+## 매우 중요: 선택지 순서 랜덤화
+- 선택지 순서를 반드시 무작위로 섞어주세요!
+- 긍정적 선택지가 항상 첫 번째에 오면 안 됩니다!
+- 예시 순서: [부정, 긍정, 중립] 또는 [중립, 부정, 긍정] 또는 [긍정, 부정, 중립] 등
+- 매번 다른 순서로 배치해주세요.
 
 ## 중요: 감정 다양성
 - 3개의 선택지가 모두 같은 감정이면 안 됩니다!
@@ -470,9 +474,9 @@ JSON만 출력하세요. 다른 설명은 필요 없습니다."""
             "image_url": image_url,
             "dialogue": content.get("dialogue", "안녕하세요!"),
             "choices": content.get("choices", [
-                {"text": "반갑게 인사한다", "delta": 10, "expression": "happy"},
-                {"text": "고개를 끄덕인다", "delta": 2, "expression": "neutral"},
-                {"text": "무시한다", "delta": -10, "expression": "sad"},
+                {"text": "고개를 끄덕인다", "delta": 0, "expression": "neutral"},
+                {"text": "반갑게 인사한다", "delta": 2, "expression": "happy"},
+                {"text": "무시한다", "delta": -5, "expression": "sad"},
             ]),
         }
 
@@ -515,9 +519,9 @@ def _get_fallback_content(style: str, scene_number: int, affection: int) -> dict
         "image_url": f"https://placehold.co/1024x768/FFB6C1/333333?text=Turn+{scene_number}",
         "dialogue": dialogue,
         "choices": [
-            {"text": "따뜻하게 웃어준다", "delta": 10, "expression": "happy"},
-            {"text": "고개를 끄덕인다", "delta": 2, "expression": "neutral"},
-            {"text": "다른 곳을 본다", "delta": -8, "expression": "sad"},
+            {"text": "다른 곳을 본다", "delta": -5, "expression": "sad"},
+            {"text": "따뜻하게 웃어준다", "delta": 2, "expression": "happy"},
+            {"text": "고개를 끄덕인다", "delta": 0, "expression": "neutral"},
         ],
     }
 
