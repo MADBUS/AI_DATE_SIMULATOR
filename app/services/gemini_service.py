@@ -411,6 +411,7 @@ async def generate_special_event_image(
     art_style: str,
     character_design: dict | None = None,
     event_type: str | None = None,
+    reference_image_url: str | None = None,
 ) -> tuple[str, str]:
     """
     특별 이벤트 전신 씬 이미지 생성
@@ -421,6 +422,7 @@ async def generate_special_event_image(
         art_style: 그림체 (anime/realistic/watercolor)
         character_design: 캐릭터 디자인 (동일 캐릭터 유지)
         event_type: 이벤트 타입 (None이면 랜덤 선택)
+        reference_image_url: 참조할 캐릭터 이미지 URL (neutral 표정)
 
     Returns:
         (이미지 URL, 이벤트 설명)
@@ -441,36 +443,47 @@ async def generate_special_event_image(
 
     # 그림체 설정
     art_style_prompts = {
-        "anime": "modern Japanese anime art style, visual novel CG quality, beautiful anime illustration",
-        "realistic": "photorealistic portrait photography style, cinematic lighting, magazine quality",
-        "watercolor": "traditional watercolor painting style, soft dreamy artistic illustration",
+        "anime": "modern Japanese anime art style, visual novel CG quality, beautiful anime illustration, consistent character design",
+        "realistic": "photorealistic portrait photography style, cinematic lighting, magazine quality, same person throughout",
+        "watercolor": "traditional watercolor painting style, soft dreamy artistic illustration, consistent character appearance",
     }
     art_prompt = art_style_prompts.get(art_style, art_style_prompts["anime"])
 
-    # 전신 이벤트 씬 프롬프트
+    # 전신 이벤트 씬 프롬프트 (캐릭터 일관성 강조)
     prompt = f"""Create a beautiful full-body special event illustration.
 
-SUBJECT: An attractive {gender_word}
+CRITICAL - CHARACTER CONSISTENCY:
+This MUST be the EXACT SAME character with these SPECIFIC features:
 - Hair: {design['hair']}
 - Eyes: {design['eyes']}
-- Outfit: elegant outfit suitable for the scene
-- Features: {design['features']}
+- Face: {design['features']}
+These features are NON-NEGOTIABLE and must match exactly.
+
+SUBJECT: An attractive {gender_word}
+The character must have IDENTICAL appearance to the reference - same face shape, same hairstyle, same eye color, same skin tone.
 
 SCENE: {event['scene']}
 MOOD: {event['mood']}
 
+OUTFIT: Elegant outfit suitable for the romantic scene (dress, formal wear, or date outfit)
+
 COMPOSITION:
-- Full body shot showing the entire character
-- Character is the main focus
-- Beautiful scenic background matching the event
+- Full body shot showing the entire character from head to toe
+- Character is the main focus, centered in frame
+- Beautiful scenic background matching the event theme
 - Cinematic composition with depth
-- Emotional and atmospheric lighting
+- Warm, romantic, emotional lighting
 - High quality, detailed artwork
 
 ART STYLE: {art_prompt}
 
-MUST BE: East Asian appearance, beautiful, emotionally engaging scene
-DO NOT include: text, watermarks, multiple characters, Western features, deformed anatomy"""
+ABSOLUTE REQUIREMENTS:
+- East Asian appearance (Korean/Japanese features)
+- SAME character as the reference - identical face, hair, eyes
+- Beautiful, emotionally engaging romantic scene
+- Single character only
+
+DO NOT include: text, watermarks, multiple characters, Western/Caucasian features, deformed anatomy, different character design"""
 
     # Imagen 4.0 모델로 생성
     models_to_try = [

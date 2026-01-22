@@ -167,12 +167,25 @@ async def check_special_event(session_id: UUID, db: AsyncSession = Depends(get_d
                 style=char_setting.style,
             )
 
-            # 전신 이벤트 씬 이미지 생성
+            # neutral 표정 이미지 가져오기 (캐릭터 참조용)
+            neutral_image_url = None
+            expr_result = await db.execute(
+                select(CharacterExpression).where(
+                    CharacterExpression.setting_id == char_setting.id,
+                    CharacterExpression.expression_type == "neutral"
+                )
+            )
+            neutral_expr = expr_result.scalar_one_or_none()
+            if neutral_expr:
+                neutral_image_url = neutral_expr.image_url
+
+            # 전신 이벤트 씬 이미지 생성 (neutral 이미지 참조)
             special_image_url, event_description = await generate_special_event_image(
                 gender=char_setting.gender,
                 style=char_setting.style,
                 art_style=char_setting.art_style or "anime",
                 character_design=character_design,
+                reference_image_url=neutral_image_url,
             )
         else:
             # 캐릭터 설정이 없는 경우 placeholder
