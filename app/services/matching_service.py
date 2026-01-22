@@ -3,12 +3,19 @@ PvP 매칭 서비스
 Phase 2: Redis 기반 매칭 큐 시스템
 """
 
+import asyncio
 from typing import Optional
 from redis.asyncio import Redis
 
 
 # Redis 키
 MATCHING_QUEUE_KEY = "pvp:matching_queue"
+
+# 매칭 타임아웃 (초)
+MATCHING_TIMEOUT_SECONDS = 30
+
+# 매칭 폴링 간격 (초)
+MATCHING_POLL_INTERVAL = 0.5
 
 
 class MatchingService:
@@ -127,3 +134,54 @@ class MatchingService:
         """
         await self.redis.delete(MATCHING_QUEUE_KEY)
         return True
+
+    async def wait_for_match_with_timeout(
+        self,
+        session_id: str,
+        bet_amount: int,
+        timeout_seconds: float = MATCHING_TIMEOUT_SECONDS,
+    ) -> dict:
+        """
+        타임아웃 내에 매칭 상대를 찾기
+
+        Args:
+            session_id: 자신의 세션 ID
+            bet_amount: 배팅 금액
+            timeout_seconds: 타임아웃 (기본 30초)
+
+        Returns:
+            {
+                "status": "matched" | "timeout",
+                "opponent_session_id": str | None,
+                "opponent_bet": int | None
+            }
+        """
+        start_time = asyncio.get_event_loop().time()
+        end_time = start_time + timeout_seconds
+
+        # 먼저 큐에 자신을 등록
+        await self.add_to_queue(session_id, bet_amount)
+
+        while asyncio.get_event_loop().time() < end_time:
+            # 매칭 상대 찾기
+            match_result = await self.find_match(session_id, bet_amount)
+
+            if match_result is not None:
+                # 매칭 성공 - 자신도 큐에서 제거
+                await self.remove_from_queue(session_id)
+                return {
+                    "status": "matched",
+                    "opponent_session_id": match_result["opponent_session_id"],
+                    "opponent_bet": match_result["opponent_bet"],
+                }
+
+            # 잠시 대기 후 재시도
+            await asyncio.sleep(MATCHING_POLL_INTERVAL)
+
+        # 타임아웃 - 큐에서 제거
+        await self.remove_from_queue(session_id)
+        return {
+            "status": "timeout",
+            "opponent_session_id": None,
+            "opponent_bet": None,
+        }
