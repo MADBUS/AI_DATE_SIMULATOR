@@ -21,27 +21,36 @@
 | 테이블 | 용도 | 주요 필드 |
 |--------|------|-----------|
 | **users** | 사용자 정보 | google_id, email, mbti, is_premium |
-| **game_sessions** | 게임 진행 상태 | user_id, affection, current_scene, status, save_slot |
+| **game_sessions** | 게임 진행 상태 | user_id, affection, current_scene, status, is_stolen, original_owner_id |
 | **character_settings** | 연애 대상자 설정 | session_id, gender, style, mbti, art_style |
-| **character_expressions** | 표정 이미지 (6종) | setting_id, expression_type, image_url |
+| **character_expressions** | 표정 애니메이션 (7종) | setting_id, expression_type, image_url, video_url |
 | **scenes** | 각 씬 데이터 | session_id, expression_type, dialogue_text, is_special_event |
 | **ai_generated_content** | AI 캐시 | prompt_hash, content_type, content_data |
 | **minigame_results** | 미니게임 결과 | session_id, result, bonus_affection |
+| **pvp_matches** | PvP 매칭 기록 | player1_session_id, player2_session_id, bet_affection, winner_id, loser_character_stolen |
+| **special_event_images** | 특별 이벤트 전신 이미지 | session_id, event_type, image_url, is_nsfw |
 
 ### 1.2 ERD 간소화
 
 ```
 users (사용자: mbti, is_premium)
   ↓ 1:N
-game_sessions (게임)
+game_sessions (게임: is_stolen, original_owner_id)
   ↓ 1:1
 character_settings (연애 대상자 설정: 성별, 스타일, MBTI, 그림체)
   ↓ 1:N
-character_expressions (표정 이미지 6종)
+character_expressions (표정 애니메이션 7종: image_url, video_url)
 
 game_sessions → scenes (씬)
 game_sessions → minigame_results (미니게임 결과)
-ai_generated_content (AI 캐시: 표정, 서비스 컷)
+game_sessions → special_event_images (특별 이벤트 이미지)
+
+pvp_matches (PvP 매칭)
+  → player1_session_id (game_sessions)
+  → player2_session_id (game_sessions)
+  → winner_id (users)
+
+ai_generated_content (AI 캐시: 표정, 애니메이션, 서비스 컷)
 ```
 
 ### 1.3 스키마 생성 순서
@@ -773,6 +782,137 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 - `backlog/001-user-mbti.md` - 사용자 MBTI 시스템
 - `backlog/002-image-prompt-enhancement.md` - 이미지 프롬프트 개선
 - `backlog/003-special-event-system.md` - 특별 이벤트 시스템
+
+---
+
+## 6. Phase 2 백로그 (신규 기능)
+
+### 🎬 애니메이션 시스템 (Gemini Video API)
+
+#### Backend
+- [ ] Gemini Video API 연동 (Veo 모델)
+- [ ] 표정별 애니메이션 생성 함수 구현
+- [ ] character_expressions 테이블에 video_url 컬럼 추가
+- [ ] 애니메이션 캐싱 (Redis)
+- [ ] 상반신 영상 프롬프트 최적화
+
+#### Frontend
+- [ ] 비디오 플레이어 컴포넌트 구현
+- [ ] 선택지 선택 시 감정 애니메이션 재생 → 평온(neutral)으로 복귀
+- [ ] 게임 UI 상반신만 표시하도록 수정
+- [ ] 애니메이션 로딩 상태 처리
+
+---
+
+### 🎰 PvP 매칭 시스템 (WebSocket)
+
+#### Backend
+- [ ] WebSocket 엔드포인트 구현 (`/ws/pvp/match`)
+- [ ] 매칭 큐 시스템 (Redis pub/sub)
+- [ ] 30초 타임아웃 처리
+- [ ] pvp_matches 테이블 생성
+- [ ] 호감도 배팅 로직 구현
+  - 양쪽 배팅 중 높은 쪽으로 자동 결정
+  - 승자: 상대방 호감도 획득 + 이벤트 씬 표시
+  - 패자: 배팅한 호감도 손실 (보유량 초과 시 보유량만큼만)
+- [ ] 캐릭터 뺏기 로직
+  - 패자 호감도 0 이하 시 캐릭터 뺏김
+  - game_sessions에 is_stolen, original_owner_id 추가
+  - 뺏은 캐릭터는 호감도 30으로 새 세션 생성
+- [ ] 매칭 실패 시 솔로 미니게임 트리거 (난이도 상향)
+
+#### Frontend
+- [ ] WebSocket 연결 관리 (zustand)
+- [ ] 매칭 대기 UI (30초 카운트다운)
+- [ ] 배팅 호감도 선택 UI
+- [ ] 매칭 결과 모달 (승리/패배/캐릭터 획득)
+- [ ] "상대방의 애인을 뺏어왔습니다!" 알림
+
+---
+
+### 🖼️ 특별 이벤트 개선
+
+#### Backend
+- [ ] 이벤트 씬 승리 시에만 표시하도록 수정
+- [ ] 전신 이벤트 씬 선정성 강화 프롬프트
+- [ ] special_event_images 테이블 생성
+
+#### Frontend
+- [ ] 미니게임 패배 시 이벤트 이미지 숨김 처리
+- [ ] 승리 시에만 SpecialEventModal 표시
+
+---
+
+### 📱 마이페이지 개선
+
+#### Backend
+- [ ] 본인 캐릭터 / 뺏은 캐릭터 분리 조회 API
+- [ ] 본인 캐릭터 1개 제한 로직
+- [ ] 새로하기 시 기존 본인 캐릭터 삭제 API
+- [ ] 뺏은 캐릭터 목록 조회 API
+
+#### Frontend
+- [ ] 마이페이지 UI 개편
+  - 내 캐릭터 섹션 (1개 제한)
+  - 뺏은 캐릭터 섹션 (무제한)
+- [ ] 새로하기 버튼 → 기존 캐릭터 삭제 확인 모달
+- [ ] 뺏은 캐릭터 이어하기 기능
+
+---
+
+### 🎮 게임 UI 수정
+
+#### Frontend
+- [ ] 게임 시작 화면 10턴 제한 표시 제거
+- [ ] 턴 무제한 안내 문구로 변경
+
+---
+
+### 🔧 미니게임 난이도 조정
+
+#### Frontend
+- [ ] PvP 매칭 실패 시 솔로 미니게임 난이도 상향
+  - 목표: 7개 → 12개
+  - 시간: 8초 → 6초
+  - 하트 크기: 50-80px → 40-60px
+  - 하트 속도: 4-6초 → 2-4초
+
+---
+
+## 7. Phase 2 테이블 스키마 추가
+
+```sql
+-- PvP 매칭 기록
+CREATE TABLE pvp_matches (
+    id UUID PRIMARY KEY,
+    player1_session_id UUID REFERENCES game_sessions(id),
+    player2_session_id UUID REFERENCES game_sessions(id),
+    player1_bet INT,
+    player2_bet INT,
+    final_bet INT,
+    winner_user_id UUID REFERENCES users(id),
+    loser_character_stolen BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- 특별 이벤트 이미지
+CREATE TABLE special_event_images (
+    id UUID PRIMARY KEY,
+    session_id UUID REFERENCES game_sessions(id),
+    event_type VARCHAR(50),
+    image_url TEXT,
+    video_url TEXT,
+    is_nsfw BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- game_sessions 테이블 수정
+ALTER TABLE game_sessions ADD COLUMN is_stolen BOOLEAN DEFAULT FALSE;
+ALTER TABLE game_sessions ADD COLUMN original_owner_id UUID REFERENCES users(id);
+
+-- character_expressions 테이블 수정
+ALTER TABLE character_expressions ADD COLUMN video_url TEXT;
+```
 
 ---
 
