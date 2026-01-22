@@ -165,11 +165,12 @@ def build_expression_prompt(
     style: str,
     art_style: str,
     expression: str,
+    character_design: dict | None = None,
 ) -> str:
     """캐릭터 설정 기반 표정 이미지 생성 프롬프트 생성."""
 
-    # 캐릭터 고정 디자인 가져오기
-    design = get_character_design(gender, style)
+    # 캐릭터 디자인 사용 (전달받은 것 또는 새로 생성)
+    design = character_design if character_design else get_character_design(gender, style)
 
     # 표정별 상세 설명
     expression_details = {
@@ -290,6 +291,7 @@ async def generate_character_image(
     style: str,
     art_style: str,
     expression: str,
+    character_design: dict | None = None,
 ) -> str:
     """
     Gemini API를 사용하여 캐릭터 이미지 생성
@@ -299,11 +301,12 @@ async def generate_character_image(
         style: 캐릭터 성격 (tsundere/cool/cute/sexy/pure)
         art_style: 그림체 (anime/realistic/watercolor)
         expression: 표정 (neutral/happy/sad/jealous/shy/excited)
+        character_design: 캐릭터 디자인 (동일 캐릭터 유지를 위해 전달)
 
     Returns:
         생성된 이미지의 URL
     """
-    prompt = build_expression_prompt(gender, style, art_style, expression)
+    prompt = build_expression_prompt(gender, style, art_style, expression, character_design)
 
     # Imagen 4.0 모델 사용
     models_to_try = [

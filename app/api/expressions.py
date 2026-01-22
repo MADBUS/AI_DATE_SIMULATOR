@@ -12,23 +12,12 @@ from sqlalchemy.orm import selectinload
 from app.core.database import get_db
 from app.models.game import GameSession, CharacterSetting, CharacterExpression
 from app.schemas.character import CharacterExpressionResponse, ExpressionsGeneratedResponse
+from app.services.gemini_service import generate_character_image, get_character_design
 
 router = APIRouter()
 
-# Expression types to generate
-EXPRESSION_TYPES = ["neutral", "happy", "sad", "jealous", "shy", "excited"]
-
-
-async def generate_expression_image(
-    character_setting: CharacterSetting,
-    expression_type: str,
-) -> str:
-    """
-    Generate an expression image using Gemini API.
-    This is a placeholder - actual implementation will use Gemini.
-    """
-    # TODO: Implement actual Gemini image generation
-    return f"https://example.com/generated/{expression_type}.png"
+# Expression types to generate (7가지)
+EXPRESSION_TYPES = ["neutral", "happy", "sad", "jealous", "shy", "excited", "disgusted"]
 
 
 @router.post(
@@ -74,9 +63,21 @@ async def generate_expressions(
     character_setting = session.character_setting
     expressions = []
 
-    # Generate 6 expression images
+    # 캐릭터 디자인을 한 번만 생성 (모든 표정에서 동일한 캐릭터 유지)
+    character_design = get_character_design(
+        gender=character_setting.gender,
+        style=character_setting.style,
+    )
+
+    # Generate expression images using Gemini Imagen API (동일 캐릭터 디자인 사용)
     for expression_type in EXPRESSION_TYPES:
-        image_url = await generate_expression_image(character_setting, expression_type)
+        image_url = await generate_character_image(
+            gender=character_setting.gender,
+            style=character_setting.style,
+            art_style=character_setting.art_style or "anime",
+            expression=expression_type,
+            character_design=character_design,  # 동일한 디자인 전달
+        )
 
         expression = CharacterExpression(
             setting_id=character_setting.id,
