@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.api import api_router
+from app.api.pvp_websocket import router as pvp_ws_router
 from app.core.config import settings
 from app.core.database import engine, Base
 from app.models import user, game  # Import models to register them
@@ -48,6 +49,9 @@ app.add_middleware(
 
 # API 라우터 등록
 app.include_router(api_router, prefix="/api")
+
+# WebSocket 라우터 등록 (PvP 매칭)
+app.include_router(pvp_ws_router, prefix="/ws/pvp", tags=["PvP WebSocket"])
 
 # Static files (이미지 서빙)
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")

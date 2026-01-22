@@ -9,6 +9,9 @@ async_session_maker = async_sessionmaker(
     engine, class_=AsyncSession, expire_on_commit=False
 )
 
+# Alias for WebSocket handlers
+async_session = async_session_maker
+
 
 class Base(DeclarativeBase):
     pass
