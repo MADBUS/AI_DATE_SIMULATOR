@@ -483,20 +483,21 @@ async def generate_scene_content(
     else:
         mood = "거리감을 두며 조심스러워하는"
 
-    # 랜덤 상황과 주제 선택
     import random
-    situation = random.choice(DATE_SITUATIONS)
-    topic = random.choice(CONVERSATION_TOPICS)
 
-    # 이전 대화 맥락 구성
+    # 이전 대화 맥락 구성 및 상황 설정
     previous_context = ""
     dialogue_instruction = ""
+    situation_context = ""
+
     if previous_dialogue and previous_choice:
+        # 이전 대화가 있으면 → 대화 흐름 유지 (새 상황/주제 없음)
         previous_context = f"""
 ####### 최우선 필수 사항 #######
 사용자가 방금 선택한 행동/말: "{previous_choice}"
 
 캐릭터는 반드시 위 선택에 대해 직접적으로 반응해야 합니다!
+주제를 바꾸지 말고, 현재 대화 흐름을 이어가세요!
 
 예시:
 - 사용자 선택: "예쁘다고 말한다" → 캐릭터: "에, 에잇... 갑자기 그런 말 하면 어떡해! (부끄러워하며)"
@@ -507,15 +508,33 @@ async def generate_scene_content(
         dialogue_instruction = f"""
 ### 대사 작성 필수 규칙 ###
 1. 캐릭터의 대사는 반드시 "{previous_choice}"에 대한 직접적인 반응으로 시작해야 합니다!
-2. 사용자의 선택을 무시하고 새로운 주제로 시작하면 안 됩니다!
-3. 선택에 대한 감정적 반응(기쁨/부끄러움/슬픔/화남 등)을 먼저 보여주세요.
+2. 사용자의 선택을 무시하고 갑자기 새로운 주제로 바꾸면 안 됩니다!
+3. 현재 대화의 흐름과 분위기를 유지하세요!
+4. 선택에 대한 감정적 반응(기쁨/부끄러움/슬픔/화남 등)을 먼저 보여주세요.
 """
+        # 이전 대화가 있으면 상황 컨텍스트 없음 (대화 흐름 우선)
+        situation_context = f"- 턴 번호: {scene_number} (대화 진행 중 - 흐름 유지)"
+
     elif scene_number == 1:
-        previous_context = """
+        # 첫 턴 → 새로운 상황과 주제 설정
+        situation = random.choice(DATE_SITUATIONS)
+        topic = random.choice(CONVERSATION_TOPICS)
+        previous_context = f"""
 ## 첫 만남
-- 이것은 첫 번째 대화입니다. 자연스러운 인사나 만남으로 시작해주세요.
+- 이것은 첫 번째 대화입니다.
+- 상황: {situation}
+- 대화 주제: {topic}
+- 자연스러운 인사나 만남으로 시작해주세요.
 """
         dialogue_instruction = ""
+        situation_context = f"- 장소/상황: {situation}\n- 대화 주제: {topic}\n- 턴 번호: {scene_number}"
+
+    else:
+        # 이전 대화 정보가 없는 경우 (예외 상황)
+        situation = random.choice(DATE_SITUATIONS)
+        previous_context = ""
+        dialogue_instruction = ""
+        situation_context = f"- 장소/상황: {situation}\n- 턴 번호: {scene_number}"
 
     # Gemini 프롬프트 생성
     prompt = f"""당신은 연애 시뮬레이션 게임의 시나리오 작가입니다.
@@ -528,9 +547,7 @@ async def generate_scene_content(
 - 현재 분위기: {mood}
 
 ## 현재 상황
-- 장소/상황: {situation}
-- 대화 주제 힌트: {topic}
-- 턴 번호: {scene_number}
+{situation_context}
 
 ## 사용자 정보
 - MBTI: {user_mbti or "알 수 없음"}
