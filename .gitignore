@@ -388,3 +388,9 @@ htmlcov/
 # Temp files
 test_db.py
 *.log
+
+# Generated files
+static/images/
+static/videos/
+nul
+package-lock.json
