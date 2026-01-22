@@ -395,23 +395,41 @@ async def generate_scene_content(
 - MBTI: {user_mbti or "알 수 없음"}
 - 선택지 스타일: {user_style}
 
+## 캐릭터 감정 타입 (6가지)
+각 선택지에 따라 캐릭터가 보여줄 감정을 다음 중 하나로 지정해야 합니다:
+- "neutral": 평범하고 차분한 상태
+- "happy": 기쁘고 즐거운 상태 (칭찬받거나 좋은 일이 있을 때)
+- "sad": 슬프거나 실망한 상태 (거절당하거나 서운할 때)
+- "jealous": 질투하거나 삐진 상태 (다른 사람 얘기하거나 관심 없을 때)
+- "shy": 부끄럽고 수줍은 상태 (직접적인 호감 표현이나 칭찬에)
+- "excited": 설레고 두근거리는 상태 (로맨틱한 상황이나 기대될 때)
+
 ## 요청
 1. 캐릭터가 사용자에게 하는 대사를 1-2문장으로 작성해주세요.
 2. 사용자가 선택할 수 있는 3개의 선택지를 작성해주세요.
+3. 각 선택지에는 반드시 캐릭터의 감정 반응(expression)을 포함해야 합니다.
 
 ## 선택지 규칙
 - 각 선택지는 사용자의 MBTI 성향({user_style})을 반영해야 합니다.
 - 첫 번째 선택지: 호감도를 올리는 긍정적 선택 (delta: +5 ~ +15)
-- 두 번째 선택지: 중립적 선택 (delta: -2 ~ +5)
+  - 감정: happy, shy, excited 중 상황에 맞게 선택
+- 두 번째 선택지: 중립적이거나 장난스러운 선택 (delta: -2 ~ +5)
+  - 감정: neutral, jealous, shy 중 상황에 맞게 선택
 - 세 번째 선택지: 호감도를 낮추는 부정적 선택 (delta: -15 ~ -5)
+  - 감정: sad, jealous, neutral 중 상황에 맞게 선택
+
+## 중요: 감정 다양성
+- 3개의 선택지가 모두 같은 감정이면 안 됩니다!
+- 가능하면 서로 다른 감정을 사용하세요.
+- 상황에 맞는 자연스러운 감정 반응을 선택하세요.
 
 ## 출력 형식 (JSON)
 {{
   "dialogue": "캐릭터의 대사",
   "choices": [
-    {{"text": "선택지1 텍스트", "delta": 숫자}},
-    {{"text": "선택지2 텍스트", "delta": 숫자}},
-    {{"text": "선택지3 텍스트", "delta": 숫자}}
+    {{"text": "선택지1 텍스트", "delta": 숫자, "expression": "감정타입"}},
+    {{"text": "선택지2 텍스트", "delta": 숫자, "expression": "감정타입"}},
+    {{"text": "선택지3 텍스트", "delta": 숫자, "expression": "감정타입"}}
   ]
 }}
 
@@ -452,9 +470,9 @@ JSON만 출력하세요. 다른 설명은 필요 없습니다."""
             "image_url": image_url,
             "dialogue": content.get("dialogue", "안녕하세요!"),
             "choices": content.get("choices", [
-                {"text": "반갑게 인사한다", "delta": 10},
-                {"text": "고개를 끄덕인다", "delta": 2},
-                {"text": "무시한다", "delta": -10},
+                {"text": "반갑게 인사한다", "delta": 10, "expression": "happy"},
+                {"text": "고개를 끄덕인다", "delta": 2, "expression": "neutral"},
+                {"text": "무시한다", "delta": -10, "expression": "sad"},
             ]),
         }
 
@@ -497,9 +515,9 @@ def _get_fallback_content(style: str, scene_number: int, affection: int) -> dict
         "image_url": f"https://placehold.co/1024x768/FFB6C1/333333?text=Turn+{scene_number}",
         "dialogue": dialogue,
         "choices": [
-            {"text": "따뜻하게 웃어준다", "delta": 10},
-            {"text": "고개를 끄덕인다", "delta": 2},
-            {"text": "다른 곳을 본다", "delta": -8},
+            {"text": "따뜻하게 웃어준다", "delta": 10, "expression": "happy"},
+            {"text": "고개를 끄덕인다", "delta": 2, "expression": "neutral"},
+            {"text": "다른 곳을 본다", "delta": -8, "expression": "sad"},
         ],
     }
 
