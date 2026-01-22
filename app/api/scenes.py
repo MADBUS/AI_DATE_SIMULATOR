@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 from app.core.database import get_db
 from app.models import GameSession, Scene
+from app.models.game import CharacterExpression
 from app.models.user import User
 from app.schemas.game import SceneResponse, ChoiceResponse
 from app.services.gemini_service import generate_scene_content
@@ -49,19 +50,54 @@ async def generate_scene(session_id: UUID, db: AsyncSession = Depends(get_db)):
     if session.status != "playing":
         raise HTTPException(status_code=400, detail="Game already ended")
 
-    # AI 콘텐츠 생성 (MBTI 및 캐릭터 설정 반영)
+    # 이전 씬 조회 (대화 맥락을 위해)
+    previous_choice = None
+    previous_dialogue = None
+    if session.current_scene > 1:
+        prev_scene_result = await db.execute(
+            select(Scene)
+            .where(
+                Scene.session_id == session_id,
+                Scene.scene_number == session.current_scene - 1
+            )
+        )
+        prev_scene = prev_scene_result.scalar_one_or_none()
+        if prev_scene:
+            previous_dialogue = prev_scene.dialogue_text
+            # 선택한 선택지 가져오기
+            if prev_scene.selected_choice_index is not None and prev_scene.choices_offered:
+                choices = prev_scene.choices_offered
+                if 0 <= prev_scene.selected_choice_index < len(choices):
+                    previous_choice = choices[prev_scene.selected_choice_index].get("text", "")
+
+    # AI 콘텐츠 생성 (MBTI 및 캐릭터 설정 반영, 이전 대화 맥락 포함)
     content = await generate_scene_content(
         character_setting=session.character_setting,
         user_mbti=session.user.mbti if session.user else None,
         scene_number=session.current_scene,
         affection=session.affection,
+        previous_choice=previous_choice,
+        previous_dialogue=previous_dialogue,
     )
+
+    # 캐릭터 표정 이미지 가져오기 (neutral 기본)
+    image_url = content["image_url"]  # 기본 placeholder
+    if session.character_setting:
+        expr_result = await db.execute(
+            select(CharacterExpression).where(
+                CharacterExpression.setting_id == session.character_setting.id,
+                CharacterExpression.expression_type == "neutral"
+            )
+        )
+        neutral_expression = expr_result.scalar_one_or_none()
+        if neutral_expression:
+            image_url = neutral_expression.image_url
 
     # 씬 저장
     scene = Scene(
         session_id=session_id,
         scene_number=session.current_scene,
-        image_url=content["image_url"],
+        image_url=image_url,
         dialogue_text=content["dialogue"],
         choices_offered=content["choices"],
     )
@@ -70,7 +106,7 @@ async def generate_scene(session_id: UUID, db: AsyncSession = Depends(get_db)):
 
     return SceneResponse(
         scene_number=session.current_scene,
-        image_url=content["image_url"],
+        image_url=image_url,
         dialogue=content["dialogue"],
         choices=[
             ChoiceResponse(id=i, text=c["text"], delta=c["delta"])

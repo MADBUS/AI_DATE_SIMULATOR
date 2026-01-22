@@ -345,11 +345,52 @@ MBTI_CHOICE_STYLES = {
 }
 
 
+# 다양한 데이트 상황/장소
+DATE_SITUATIONS = [
+    "카페에서 커피를 마시며 대화하는 중",
+    "공원을 산책하며 대화하는 중",
+    "영화관에서 영화를 보기 전 대화하는 중",
+    "맛집에서 식사하며 대화하는 중",
+    "서점에서 책을 구경하며 대화하는 중",
+    "놀이공원에서 놀이기구를 타기 전 대화하는 중",
+    "바닷가를 걸으며 대화하는 중",
+    "전시회를 관람하며 대화하는 중",
+    "노래방에서 노래를 부르기 전 대화하는 중",
+    "야경을 보며 대화하는 중",
+    "버스정류장에서 버스를 기다리며 대화하는 중",
+    "편의점에서 간식을 고르며 대화하는 중",
+    "학교/회사 근처에서 우연히 만나 대화하는 중",
+    "비 오는 날 처마 밑에서 비를 피하며 대화하는 중",
+    "벚꽃길을 걸으며 대화하는 중",
+]
+
+# 다양한 대화 주제
+CONVERSATION_TOPICS = [
+    "서로의 취미에 대해",
+    "좋아하는 음식에 대해",
+    "최근 있었던 재미있는 일에 대해",
+    "어린 시절 추억에 대해",
+    "좋아하는 영화/드라마에 대해",
+    "미래의 꿈이나 목표에 대해",
+    "좋아하는 음악에 대해",
+    "여행 가고 싶은 곳에 대해",
+    "요즘 고민에 대해",
+    "첫인상에 대해",
+    "이상형에 대해",
+    "좋아하는 계절에 대해",
+    "반려동물에 대해",
+    "주말에 주로 하는 일에 대해",
+    "스트레스 푸는 방법에 대해",
+]
+
+
 async def generate_scene_content(
     character_setting,
     user_mbti: str | None,
     scene_number: int,
     affection: int,
+    previous_choice: str | None = None,
+    previous_dialogue: str | None = None,
 ) -> dict:
     """
     Gemini API를 사용하여 씬 콘텐츠 생성 (대화 + 선택지)
@@ -359,6 +400,8 @@ async def generate_scene_content(
         user_mbti: 사용자의 MBTI
         scene_number: 현재 씬 번호 (턴 카운트)
         affection: 현재 호감도 (0-100)
+        previous_choice: 사용자가 이전에 선택한 선택지 텍스트
+        previous_dialogue: 이전 캐릭터의 대사
     """
     # 캐릭터 정보
     char_gender = character_setting.gender if character_setting else "female"
@@ -381,6 +424,26 @@ async def generate_scene_content(
     else:
         mood = "거리감을 두며 조심스러워하는"
 
+    # 랜덤 상황과 주제 선택
+    import random
+    situation = random.choice(DATE_SITUATIONS)
+    topic = random.choice(CONVERSATION_TOPICS)
+
+    # 이전 대화 맥락 구성
+    previous_context = ""
+    if previous_dialogue and previous_choice:
+        previous_context = f"""
+## 이전 대화 (반드시 이어서 대화해야 함!)
+- 캐릭터가 한 말: "{previous_dialogue}"
+- 사용자의 선택/반응: "{previous_choice}"
+- 중요: 캐릭터의 다음 대사는 사용자의 선택에 대한 자연스러운 반응이어야 합니다!
+"""
+    elif scene_number == 1:
+        previous_context = """
+## 첫 만남
+- 이것은 첫 번째 대화입니다. 자연스러운 인사나 만남으로 시작해주세요.
+"""
+
     # Gemini 프롬프트 생성
     prompt = f"""당신은 연애 시뮬레이션 게임의 시나리오 작가입니다.
 
@@ -395,6 +458,12 @@ async def generate_scene_content(
 - MBTI: {user_mbti or "알 수 없음"}
 - 선택지 스타일: {user_style}
 
+## 현재 상황
+- 장소/상황: {situation}
+- 대화 주제: {topic}
+- 턴 번호: {scene_number}
+{previous_context}
+
 ## 캐릭터 감정 타입 (6가지)
 각 선택지에 따라 캐릭터가 보여줄 감정을 다음 중 하나로 지정해야 합니다:
 - "neutral": 평범하고 차분한 상태
@@ -406,7 +475,11 @@ async def generate_scene_content(
 
 ## 요청
 1. 캐릭터가 사용자에게 하는 대사를 1-2문장으로 작성해주세요.
+   - 이전 대화가 있다면, 사용자의 선택에 대한 자연스러운 반응으로 시작하세요!
+   - 현재 상황과 대화 주제에 맞는 대사를 작성하세요.
 2. 사용자가 선택할 수 있는 3개의 선택지를 작성해주세요.
+   - 선택지는 현재 대화 맥락에 맞아야 합니다.
+   - 매번 다른 종류의 선택지를 만들어주세요 (이전과 비슷한 선택지 금지!)
 3. 각 선택지에는 반드시 캐릭터의 감정 반응(expression)을 포함해야 합니다.
 
 ## 선택지 규칙
