@@ -370,6 +370,148 @@ def _get_placeholder_url(expression: str, gender: str, style: str) -> str:
     return f"https://placehold.co/512x512/{color}/333333?text={expression}+{gender}+{style}"
 
 
+# 특별 이벤트 씬 타입
+SPECIAL_EVENT_SCENES = [
+    {
+        "name": "romantic_date",
+        "description": "로맨틱한 데이트 장면",
+        "scene": "romantic sunset date scene, couple watching beautiful sunset together",
+        "mood": "romantic, warm, intimate",
+    },
+    {
+        "name": "surprise_gift",
+        "description": "깜짝 선물 장면",
+        "scene": "receiving a surprise gift, holding a beautifully wrapped present",
+        "mood": "surprised, happy, touched",
+    },
+    {
+        "name": "rain_shelter",
+        "description": "비를 피하는 장면",
+        "scene": "sheltering from rain together under one umbrella, close together",
+        "mood": "intimate, cozy, romantic",
+    },
+    {
+        "name": "festival",
+        "description": "축제 장면",
+        "scene": "at a beautiful festival with fireworks in the background, festive atmosphere",
+        "mood": "excited, joyful, magical",
+    },
+    {
+        "name": "confession",
+        "description": "고백 장면",
+        "scene": "heartfelt confession moment, holding hands, emotional atmosphere",
+        "mood": "nervous, sincere, loving",
+    },
+]
+
+
+async def generate_special_event_image(
+    gender: str,
+    style: str,
+    art_style: str,
+    character_design: dict | None = None,
+    event_type: str | None = None,
+) -> tuple[str, str]:
+    """
+    특별 이벤트 전신 씬 이미지 생성
+
+    Args:
+        gender: 캐릭터 성별 (male/female)
+        style: 캐릭터 성격 (tsundere/cool/cute/sexy/pure)
+        art_style: 그림체 (anime/realistic/watercolor)
+        character_design: 캐릭터 디자인 (동일 캐릭터 유지)
+        event_type: 이벤트 타입 (None이면 랜덤 선택)
+
+    Returns:
+        (이미지 URL, 이벤트 설명)
+    """
+    import random
+
+    # 이벤트 타입 선택
+    if event_type:
+        event = next((e for e in SPECIAL_EVENT_SCENES if e["name"] == event_type), None)
+    if not event_type or not event:
+        event = random.choice(SPECIAL_EVENT_SCENES)
+
+    # 캐릭터 디자인
+    design = character_design if character_design else get_character_design(gender, style)
+
+    # 성별 표현
+    gender_word = "young East Asian woman, Korean or Japanese" if gender == "female" else "young East Asian man, Korean or Japanese"
+
+    # 그림체 설정
+    art_style_prompts = {
+        "anime": "modern Japanese anime art style, visual novel CG quality, beautiful anime illustration",
+        "realistic": "photorealistic portrait photography style, cinematic lighting, magazine quality",
+        "watercolor": "traditional watercolor painting style, soft dreamy artistic illustration",
+    }
+    art_prompt = art_style_prompts.get(art_style, art_style_prompts["anime"])
+
+    # 전신 이벤트 씬 프롬프트
+    prompt = f"""Create a beautiful full-body special event illustration.
+
+SUBJECT: An attractive {gender_word}
+- Hair: {design['hair']}
+- Eyes: {design['eyes']}
+- Outfit: elegant outfit suitable for the scene
+- Features: {design['features']}
+
+SCENE: {event['scene']}
+MOOD: {event['mood']}
+
+COMPOSITION:
+- Full body shot showing the entire character
+- Character is the main focus
+- Beautiful scenic background matching the event
+- Cinematic composition with depth
+- Emotional and atmospheric lighting
+- High quality, detailed artwork
+
+ART STYLE: {art_prompt}
+
+MUST BE: East Asian appearance, beautiful, emotionally engaging scene
+DO NOT include: text, watermarks, multiple characters, Western features, deformed anatomy"""
+
+    # Imagen 4.0 모델로 생성
+    models_to_try = [
+        'imagen-4.0-generate-001',
+        'imagen-4.0-fast-generate-001',
+    ]
+
+    for model_name in models_to_try:
+        try:
+            print(f"Generating special event image with model: {model_name}")
+            response = client.models.generate_images(
+                model=model_name,
+                prompt=prompt,
+                config=types.GenerateImagesConfig(
+                    number_of_images=1,
+                ),
+            )
+
+            if response.generated_images and len(response.generated_images) > 0:
+                image_id = str(uuid.uuid4())
+                image_filename = f"event_{image_id}.png"
+                image_path = IMAGES_DIR / image_filename
+
+                generated_image = response.generated_images[0]
+                if hasattr(generated_image, 'image') and generated_image.image:
+                    image_bytes = generated_image.image.image_bytes
+                    if image_bytes and len(image_bytes) > 100:
+                        with open(image_path, 'wb') as f:
+                            f.write(image_bytes)
+                        print(f"Special event image generated successfully: {len(image_bytes)} bytes")
+                        return (f"/static/images/characters/{image_filename}", event['description'])
+
+        except Exception as e:
+            print(f"Special event image generation failed with {model_name}: {e}")
+            continue
+
+    # 실패 시 placeholder
+    placeholder = f"https://placehold.co/1024x768/FF69B4/FFFFFF?text=Special+Event+{event['name']}"
+    return (placeholder, event['description'])
+
+
 # 캐릭터 스타일 설명 (한국어)
 STYLE_DESCRIPTIONS_KR = {
     "tsundere": "츤데레 성격으로, 겉으로는 차갑지만 속으로는 따뜻한",

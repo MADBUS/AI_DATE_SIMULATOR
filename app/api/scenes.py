@@ -11,18 +11,33 @@ from app.models import GameSession, Scene
 from app.models.game import CharacterExpression
 from app.models.user import User
 from app.schemas.game import SceneResponse, ChoiceResponse
-from app.services.gemini_service import generate_scene_content
+from app.services.gemini_service import (
+    generate_scene_content,
+    generate_special_event_image,
+    get_character_design,
+)
 
 router = APIRouter()
 
-# Special event probability threshold
-SPECIAL_EVENT_PROBABILITY = 0.15
+# 특별 이벤트 발생 주기 (5턴마다)
+SPECIAL_EVENT_INTERVAL = 5
 
 
 class SpecialEventResponse(BaseModel):
     is_special_event: bool
     special_image_url: str | None = None
+    event_description: str | None = None
     show_minigame: bool = False
+
+
+class MinigameResultRequest(BaseModel):
+    success: bool
+
+
+class MinigameResultResponse(BaseModel):
+    affection_change: int
+    new_affection: int
+    message: str
 
 
 class SpecialImageResponse(BaseModel):
@@ -120,11 +135,12 @@ async def generate_scene(session_id: UUID, db: AsyncSession = Depends(get_db)):
 @router.post("/{session_id}/check-event", response_model=SpecialEventResponse)
 async def check_special_event(session_id: UUID, db: AsyncSession = Depends(get_db)):
     """
-    특별 이벤트 발생 체크 (15% 확률)
+    특별 이벤트 발생 체크 (5턴마다 발생)
 
     Returns:
         is_special_event: 이벤트 발생 여부
         special_image_url: 특별 이미지 URL (이벤트 발생 시)
+        event_description: 이벤트 설명
         show_minigame: 미니게임 표시 여부
     """
     # 게임 세션 조회
@@ -140,14 +156,33 @@ async def check_special_event(session_id: UUID, db: AsyncSession = Depends(get_d
     if session.status != "playing":
         raise HTTPException(status_code=400, detail="Game already ended")
 
-    # 15% 확률로 특별 이벤트 발생
-    if random.random() < SPECIAL_EVENT_PROBABILITY:
-        # TODO: 실제 Gemini API로 특별 이미지 생성
-        special_image_url = f"https://placehold.co/1024x768/FF69B4/FFFFFF?text=Special+Event+Scene+{session.current_scene}"
+    # 5턴마다 특별 이벤트 발생 (5, 10, 15, 20...)
+    if session.current_scene > 0 and session.current_scene % SPECIAL_EVENT_INTERVAL == 0:
+        # 캐릭터 설정 가져오기
+        char_setting = session.character_setting
+        if char_setting:
+            # 캐릭터 디자인 생성 (일관성 유지를 위해)
+            character_design = get_character_design(
+                gender=char_setting.gender,
+                style=char_setting.style,
+            )
+
+            # 전신 이벤트 씬 이미지 생성
+            special_image_url, event_description = await generate_special_event_image(
+                gender=char_setting.gender,
+                style=char_setting.style,
+                art_style=char_setting.art_style or "anime",
+                character_design=character_design,
+            )
+        else:
+            # 캐릭터 설정이 없는 경우 placeholder
+            special_image_url = f"https://placehold.co/1024x768/FF69B4/FFFFFF?text=Special+Event+Scene+{session.current_scene}"
+            event_description = "특별 이벤트"
 
         return SpecialEventResponse(
             is_special_event=True,
             special_image_url=special_image_url,
+            event_description=event_description,
             show_minigame=True,
         )
 
@@ -183,4 +218,57 @@ async def get_special_image(
     return SpecialImageResponse(
         image_url=image_url,
         is_blurred=not is_premium
+    )
+
+
+@router.post("/{session_id}/minigame-result", response_model=MinigameResultResponse)
+async def submit_minigame_result(
+    session_id: UUID,
+    request: MinigameResultRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    미니게임 결과 제출 및 호감도 변화 적용
+
+    Args:
+        success: 미니게임 성공 여부
+
+    Returns:
+        affection_change: 호감도 변화량
+        new_affection: 변경 후 호감도
+        message: 결과 메시지
+    """
+    # 게임 세션 조회
+    result = await db.execute(
+        select(GameSession)
+        .where(GameSession.id == session_id)
+    )
+    session = result.scalar_one_or_none()
+    if not session:
+        raise HTTPException(status_code=404, detail="Game session not found")
+
+    if session.status != "playing":
+        raise HTTPException(status_code=400, detail="Game already ended")
+
+    # 미니게임 결과에 따른 호감도 변화
+    if request.success:
+        # 성공: +10 ~ +15 대폭 상승
+        affection_change = random.randint(10, 15)
+        message = "미니게임 성공! 호감도가 대폭 상승했습니다! 💕"
+    else:
+        # 실패: -2 ~ -3 소폭 하락
+        affection_change = random.randint(-3, -2)
+        message = "미니게임 실패... 다음 기회를 노려보세요."
+
+    # 호감도 적용 (0~100 범위 유지)
+    new_affection = max(0, min(100, session.affection + affection_change))
+    session.affection = new_affection
+
+    await db.commit()
+    await db.refresh(session)
+
+    return MinigameResultResponse(
+        affection_change=affection_change,
+        new_affection=new_affection,
+        message=message,
     )
