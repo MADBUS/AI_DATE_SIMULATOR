@@ -22,14 +22,15 @@ client = genai.Client(api_key=settings.GEMINI_API_KEY)
 IMAGES_DIR = Path(__file__).parent.parent.parent / "static" / "images" / "characters"
 IMAGES_DIR.mkdir(parents=True, exist_ok=True)
 
-# 6가지 표정 타입
+# 7가지 표정 타입
 EXPRESSION_TYPES = [
     "neutral",   # 일반
     "happy",     # 기쁜
     "sad",       # 슬픈
     "jealous",   # 질투
     "shy",       # 부끄러운
-    "excited",   # 흥분
+    "excited",   # 설렘
+    "disgusted", # 극혐
 ]
 
 
@@ -152,6 +153,11 @@ def build_expression_prompt(
             "face": "flushed pink cheeks with excited smile, heart-fluttering anticipation, slightly parted lips from excitement, lovingly flustered expression",
             "mood": "butterflies in stomach feeling, romantic excitement mixed with shyness, heart pounding anticipation, lovestruck and slightly embarrassed",
             "eyes": "sparkling eyes filled with adoration and nervous excitement, shy but eager gaze, eyes shimmering with romantic anticipation, looking at viewer with loving expectation",
+        },
+        "disgusted": {
+            "face": "extremely displeased expression, wrinkled nose showing disgust, lips curled in revulsion, face turned slightly away",
+            "mood": "utterly repulsed, strongly disapproving, wanting to get away, feeling offended and grossed out",
+            "eyes": "eyes narrowed with intense displeasure, looking away with disgust, eyebrows furrowed in strong disapproval, cold rejecting gaze",
         },
     }
 
@@ -306,6 +312,7 @@ def _get_placeholder_url(expression: str, gender: str, style: str) -> str:
         "jealous": "FF6B6B",
         "shy": "FFB6C1",
         "excited": "FF69B4",
+        "disgusted": "556B2F",  # 어두운 올리브색 (불쾌함)
     }
     color = colors.get(expression, "FFB6C1")
     return f"https://placehold.co/512x512/{color}/333333?text={expression}+{gender}+{style}"
@@ -464,14 +471,15 @@ async def generate_scene_content(
 - 턴 번호: {scene_number}
 {previous_context}
 
-## 캐릭터 감정 타입 (6가지)
+## 캐릭터 감정 타입 (7가지)
 각 선택지에 따라 캐릭터가 보여줄 감정을 다음 중 하나로 지정해야 합니다:
-- "neutral": 평범하고 차분한 상태
-- "happy": 기쁘고 즐거운 상태 (칭찬받거나 좋은 일이 있을 때)
-- "sad": 슬프거나 실망한 상태 (거절당하거나 서운할 때)
-- "jealous": 질투하거나 삐진 상태 (다른 사람 얘기하거나 관심 없을 때)
-- "shy": 부끄럽고 수줍은 상태 (직접적인 호감 표현이나 칭찬에)
-- "excited": 설레고 두근거리는 상태 (로맨틱한 상황이나 기대될 때)
+- "happy": 기쁘고 즐거운 상태 (칭찬, 좋은 대화, 재미있을 때)
+- "shy": 부끄럽고 수줍은 상태 (직접적인 호감 표현, 칭찬, 스킨십 언급)
+- "excited": 설레고 두근거리는 상태 (로맨틱한 상황, 고백, 기대될 때)
+- "neutral": 평범하고 차분한 상태 (일상적인 대화)
+- "sad": 슬프거나 실망한 상태 (거절, 무관심, 서운할 때)
+- "jealous": 질투하는 상태 (다른 이성 얘기할 때만! 남용 금지)
+- "disgusted": 극혐, 역겨워하는 상태 (무례하거나 불쾌한 말을 들었을 때)
 
 ## 요청
 1. 캐릭터가 사용자에게 하는 대사를 1-2문장으로 작성해주세요.
@@ -485,9 +493,12 @@ async def generate_scene_content(
 ## 선택지 규칙
 - 각 선택지는 사용자의 MBTI 성향({user_style})을 반영해야 합니다.
 - 3개의 선택지 중 하나는 긍정적, 하나는 중립적, 하나는 부정적이어야 합니다.
-- 긍정적 선택: 호감도 +1 ~ +2 (감정: happy, shy, excited)
-- 중립적 선택: 호감도 -1 ~ +1 (감정: neutral, shy)
-- 부정적 선택: 호감도 -5 ~ -6 (감정: sad, jealous)
+- 긍정적 선택: 호감도 +1 ~ +2
+  - 감정: happy(50%), shy(30%), excited(20%) 중 랜덤 선택
+- 중립적 선택: 호감도 -1 ~ +1
+  - 감정: neutral(60%), happy(20%), shy(20%) 중 랜덤 선택
+- 부정적 선택: 호감도 -5 ~ -6
+  - 감정: sad(40%), disgusted(40%), jealous(20%) 중 랜덤 선택
 
 ## 매우 중요: 선택지 순서 랜덤화
 - 선택지 순서를 반드시 무작위로 섞어주세요!
@@ -495,10 +506,12 @@ async def generate_scene_content(
 - 예시 순서: [부정, 긍정, 중립] 또는 [중립, 부정, 긍정] 또는 [긍정, 부정, 중립] 등
 - 매번 다른 순서로 배치해주세요.
 
-## 중요: 감정 다양성
-- 3개의 선택지가 모두 같은 감정이면 안 됩니다!
-- 가능하면 서로 다른 감정을 사용하세요.
-- 상황에 맞는 자연스러운 감정 반응을 선택하세요.
+## 매우 중요: 감정 다양성
+- 3개의 선택지가 모두 같은 감정이면 절대 안 됩니다!
+- 반드시 서로 다른 감정을 사용하세요!
+- jealous(질투)는 다른 이성 얘기할 때만 사용하세요. 남용 금지!
+- disgusted(극혐)는 정말 무례하거나 불쾌한 선택지에만 사용하세요.
+- happy, shy, sad를 주로 사용하고, jealous/disgusted는 가끔만 사용하세요.
 
 ## 출력 형식 (JSON)
 {{
