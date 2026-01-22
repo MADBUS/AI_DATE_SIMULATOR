@@ -790,17 +790,17 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 ### 🎬 애니메이션 시스템 (Gemini Video API)
 
 #### Backend
-- [ ] Gemini Video API 연동 (Veo 모델)
-- [ ] 표정별 애니메이션 생성 함수 구현
-- [ ] character_expressions 테이블에 video_url 컬럼 추가
-- [ ] 애니메이션 캐싱 (Redis)
-- [ ] 상반신 영상 프롬프트 최적화
+- [x] Gemini Video API 연동 (Veo 모델)
+- [x] 표정별 애니메이션 생성 함수 구현
+- [x] character_expressions 테이블에 video_url 컬럼 추가
+- [x] 애니메이션 캐싱 (Redis)
+- [x] 상반신 영상 프롬프트 최적화
 
 #### Frontend
-- [ ] 비디오 플레이어 컴포넌트 구현
-- [ ] 선택지 선택 시 감정 애니메이션 재생 → 평온(neutral)으로 복귀
-- [ ] 게임 UI 상반신만 표시하도록 수정
-- [ ] 애니메이션 로딩 상태 처리
+- [x] 비디오 플레이어 컴포넌트 구현
+- [x] 선택지 선택 시 감정 애니메이션 재생 → 평온(neutral)으로 복귀
+- [x] 게임 UI 상반신만 표시하도록 수정
+- [x] 애니메이션 로딩 상태 처리
 
 ---
 
@@ -810,7 +810,7 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 - [ ] WebSocket 엔드포인트 구현 (`/ws/pvp/match`)
 - [ ] 매칭 큐 시스템 (Redis pub/sub)
 - [ ] 30초 타임아웃 처리
-- [ ] pvp_matches 테이블 생성
+- [x] pvp_matches 테이블 생성
 - [ ] 호감도 배팅 로직 구현
   - 양쪽 배팅 중 높은 쪽으로 자동 결정
   - 승자: 상대방 호감도 획득 + 이벤트 씬 표시
