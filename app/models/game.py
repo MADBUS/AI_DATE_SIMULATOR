@@ -118,7 +118,7 @@ class CharacterSetting(Base):
 
 
 class CharacterExpression(Base):
-    """Expression images for a character setting (6 types)."""
+    """Expression images and videos for a character setting (7 types)."""
     __tablename__ = "character_expressions"
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -127,8 +127,9 @@ class CharacterExpression(Base):
     setting_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("character_settings.id")
     )
-    expression_type: Mapped[str] = mapped_column(String(20))  # 'neutral', 'happy', 'sad', 'jealous', 'shy', 'excited'
+    expression_type: Mapped[str] = mapped_column(String(20))  # 'neutral', 'happy', 'sad', 'jealous', 'shy', 'excited', 'disgusted'
     image_url: Mapped[str] = mapped_column(Text)
+    video_url: Mapped[str | None] = mapped_column(Text, nullable=True)  # 애니메이션 비디오 URL
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     # Relationships

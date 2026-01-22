@@ -66,12 +66,12 @@ class TestCharacterExpressionsAPI:
         assert "Character settings not found" in response.json()["detail"]
 
     @pytest.mark.asyncio
-    async def test_generate_expressions_creates_six_expressions(
+    async def test_generate_expressions_creates_seven_expressions(
         self, client: AsyncClient, test_db: AsyncSession
     ):
         """
         When generating expressions for a valid session with character settings,
-        the API should create 6 expression images and return them.
+        the API should create 7 expression images and return them.
         """
         # Create a test user
         user = User(email="test@example.com", name="Test User")
@@ -104,7 +104,7 @@ class TestCharacterExpressionsAPI:
         # Mock the Gemini image generation
         mock_image_url = "https://example.com/generated-image.png"
         with patch(
-            "app.api.expressions.generate_expression_image",
+            "app.api.expressions.generate_character_image",
             new_callable=AsyncMock,
             return_value=mock_image_url,
         ):
@@ -116,11 +116,11 @@ class TestCharacterExpressionsAPI:
 
         data = response.json()
         assert "expressions" in data
-        assert len(data["expressions"]) == 6
+        assert len(data["expressions"]) == 7
 
-        # Check all 6 expression types are present
+        # Check all 7 expression types are present
         expression_types = {expr["expression_type"] for expr in data["expressions"]}
-        expected_types = {"neutral", "happy", "sad", "jealous", "shy", "excited"}
+        expected_types = {"neutral", "happy", "sad", "jealous", "shy", "excited", "disgusted"}
         assert expression_types == expected_types
 
         # Check each expression has required fields

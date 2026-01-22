@@ -14,6 +14,7 @@ from typing import Any, Optional
 SESSION_TTL = 3600  # 1 hour
 EXPRESSION_TTL = 86400  # 24 hours
 SPECIAL_IMAGE_TTL = 86400  # 24 hours
+VIDEO_TTL = 86400  # 24 hours (애니메이션 비디오)
 
 
 class CacheService:
@@ -91,6 +92,25 @@ class CacheService:
     async def get_special_image(self, prompt_hash: str) -> Optional[str]:
         """Get cached special image URL"""
         key = f"special:{prompt_hash}"
+        value = await self.redis.get(key)
+        if value is None:
+            return None
+        return value.decode() if isinstance(value, bytes) else value
+
+    # Video caching methods (애니메이션 비디오)
+    async def cache_video(
+        self, setting_id: str, expression_type: str, video_url: str
+    ) -> bool:
+        """Cache expression video URL with 24 hour TTL"""
+        key = f"video:{setting_id}:{expression_type}"
+        await self.redis.set(key, video_url, ex=VIDEO_TTL)
+        return True
+
+    async def get_video(
+        self, setting_id: str, expression_type: str
+    ) -> Optional[str]:
+        """Get cached expression video URL"""
+        key = f"video:{setting_id}:{expression_type}"
         value = await self.redis.get(key)
         if value is None:
             return None

@@ -22,8 +22,23 @@ client = genai.Client(api_key=settings.GEMINI_API_KEY)
 IMAGES_DIR = Path(__file__).parent.parent.parent / "static" / "images" / "characters"
 IMAGES_DIR.mkdir(parents=True, exist_ok=True)
 
+# 비디오 저장 경로
+VIDEOS_DIR = Path(__file__).parent.parent.parent / "static" / "videos" / "characters"
+VIDEOS_DIR.mkdir(parents=True, exist_ok=True)
+
 # 7가지 표정 타입
 EXPRESSION_TYPES = [
+    "neutral",   # 일반
+    "happy",     # 기쁜
+    "sad",       # 슬픈
+    "jealous",   # 질투
+    "shy",       # 부끄러운
+    "excited",   # 설렘
+    "disgusted", # 극혐
+]
+
+# 7가지 비디오 표정 타입 (애니메이션용)
+VIDEO_EXPRESSION_TYPES = [
     "neutral",   # 일반
     "happy",     # 기쁜
     "sad",       # 슬픈
@@ -286,6 +301,206 @@ DO NOT include: Western/Caucasian features, text, watermarks, signatures, multip
     return prompt
 
 
+def build_video_prompt(
+    gender: str,
+    style: str,
+    art_style: str,
+    expression: str,
+    character_design: dict | None = None,
+) -> str:
+    """
+    캐릭터 설정 기반 표정 애니메이션 비디오 생성 프롬프트 생성.
+
+    Args:
+        gender: 캐릭터 성별 (male/female)
+        style: 캐릭터 성격 (tsundere/cool/cute/sexy/pure)
+        art_style: 그림체 (anime/realistic/watercolor)
+        expression: 표정 (neutral/happy/sad/jealous/shy/excited/disgusted)
+        character_design: 캐릭터 디자인 (동일 캐릭터 유지를 위해 전달)
+
+    Returns:
+        비디오 생성용 프롬프트 문자열
+    """
+    # 캐릭터 디자인 사용 (전달받은 것 또는 새로 생성)
+    design = character_design if character_design else get_character_design(gender, style)
+
+    # 표정별 애니메이션 설명
+    video_expression_details = {
+        "neutral": {
+            "animation": "gentle idle animation with subtle breathing motion",
+            "face": "serene calm expression transitioning to soft natural smile",
+            "mood": "peaceful, content, warmly approachable",
+        },
+        "happy": {
+            "animation": "joyful animation with bright smile appearing",
+            "face": "expression brightening into radiant genuine smile",
+            "mood": "overflowing with joy, warm and delightful",
+        },
+        "sad": {
+            "animation": "melancholic animation with downcast gaze",
+            "face": "expression softening into tender sadness",
+            "mood": "gentle melancholy, touching vulnerability",
+        },
+        "jealous": {
+            "animation": "pouty animation with slight head turn away",
+            "face": "adorable pout forming with puffed cheeks",
+            "mood": "endearingly jealous, playfully annoyed",
+        },
+        "shy": {
+            "animation": "bashful animation with slight head tilt and looking away",
+            "face": "cheeks flushing pink with bashful smile",
+            "mood": "sweetly embarrassed, charmingly flustered",
+        },
+        "excited": {
+            "animation": "excited animation with eyes sparkling",
+            "face": "expression lighting up with anticipation",
+            "mood": "heart-fluttering excitement, romantic anticipation",
+        },
+        "disgusted": {
+            "animation": "displeased animation with face turning away",
+            "face": "expression showing strong displeasure",
+            "mood": "utterly repulsed, strongly disapproving",
+        },
+    }
+
+    # 그림체별 비디오 스타일 설명
+    video_art_style_details = {
+        "anime": {
+            "style": "anime-style character animation, visual novel quality",
+            "rendering": "smooth 2D animation with anime aesthetics",
+        },
+        "realistic": {
+            "style": "photorealistic character video, lifelike movement",
+            "rendering": "realistic human motion and expressions",
+        },
+        "watercolor": {
+            "style": "artistic watercolor-style animation",
+            "rendering": "dreamy soft motion with artistic flair",
+        },
+    }
+
+    expr = video_expression_details.get(expression, video_expression_details["neutral"])
+    art = video_art_style_details.get(art_style, video_art_style_details["anime"])
+
+    # 성별 표현
+    gender_word = "young East Asian woman" if gender == "female" else "young East Asian man"
+
+    prompt = f"""Create a short bust-up character animation video.
+
+SUBJECT: An attractive {gender_word} with the following features:
+- Hair: {design['hair']}
+- Eyes: {design['eyes']}
+- Outfit: {design['outfit']}
+- Features: {design['features']}
+
+EXPRESSION TYPE: {expression}
+ANIMATION TYPE: {expr['animation']}
+EXPRESSION DETAILS: {expr['face']}
+MOOD: {expr['mood']}
+
+UPPER BODY COMPOSITION (CRITICAL):
+- Chest-up framing, shoulder level view
+- Face and upper body as main focus
+- Character centered in frame with stable fixed camera
+- Looking at viewer with natural eye contact
+- Gentle hair movement and sway
+
+ANIMATION DETAILS:
+- Subtle breathing motion and natural idle animation
+- Soft facial expression transitions
+- Gentle head and shoulder movements
+- Natural blink animation
+- Smooth seamless loop (2-4 seconds)
+
+VIDEO STYLE: {art['style']}
+RENDERING: {art['rendering']}
+
+IMPORTANT:
+- East Asian appearance (Korean/Japanese features)
+- Single character only
+- High quality animated video
+- Stationary camera, no camera movement
+
+DO NOT include: text, watermarks, multiple characters, Western features, legs, feet, walking, lower body"""
+
+    return prompt
+
+
+async def generate_character_video(
+    gender: str,
+    style: str,
+    art_style: str,
+    expression: str,
+    character_design: dict | None = None,
+) -> str:
+    """
+    Gemini Veo API를 사용하여 캐릭터 애니메이션 비디오 생성
+
+    Args:
+        gender: 캐릭터 성별 (male/female)
+        style: 캐릭터 성격 (tsundere/cool/cute/sexy/pure)
+        art_style: 그림체 (anime/realistic/watercolor)
+        expression: 표정 (neutral/happy/sad/jealous/shy/excited/disgusted)
+        character_design: 캐릭터 디자인 (동일 캐릭터 유지를 위해 전달)
+
+    Returns:
+        생성된 비디오의 URL
+    """
+    prompt = build_video_prompt(gender, style, art_style, expression, character_design)
+
+    # Veo 모델 사용
+    models_to_try = [
+        'veo-2.0-generate-001',
+    ]
+
+    for model_name in models_to_try:
+        try:
+            print(f"Trying video generation with model: {model_name}")
+
+            # 비디오 생성 요청
+            operation = client.models.generate_videos(
+                model=model_name,
+                prompt=prompt,
+            )
+
+            # 비디오 생성 완료 대기
+            while not operation.done:
+                import time
+                time.sleep(5)
+                operation = client.operations.get(operation)
+
+            if operation.response and operation.response.generated_videos:
+                generated_video = operation.response.generated_videos[0]
+
+                video_id = str(uuid.uuid4())
+                video_filename = f"{video_id}.mp4"
+                video_path = VIDEOS_DIR / video_filename
+
+                # 비디오 데이터 저장
+                if hasattr(generated_video, 'video') and generated_video.video:
+                    video_bytes = generated_video.video.video_bytes
+                    if video_bytes and len(video_bytes) > 100:
+                        with open(video_path, 'wb') as f:
+                            f.write(video_bytes)
+                        print(f"Video generated successfully with {model_name}, size: {len(video_bytes)} bytes")
+                        return f"/static/videos/characters/{video_filename}"
+
+            print(f"No video data in response from {model_name}")
+
+        except Exception as e:
+            print(f"Model {model_name} failed: {e}")
+            continue
+
+    # 모든 모델 실패 시 placeholder 반환
+    print(f"All video generation models failed, using placeholder")
+    return _get_video_placeholder_url(expression, gender, style)
+
+
+def _get_video_placeholder_url(expression: str, gender: str, style: str) -> str:
+    """비디오 생성 실패 시 placeholder URL 반환"""
+    return f"/static/videos/placeholder_{expression}.mp4"
+
+
 async def generate_character_image(
     gender: str,
     style: str,
@@ -308,10 +523,12 @@ async def generate_character_image(
     """
     prompt = build_expression_prompt(gender, style, art_style, expression, character_design)
 
-    # Imagen 4.0 모델 사용
+    # Imagen 모델 (4.0 -> 3.0 폴백)
     models_to_try = [
         'imagen-4.0-generate-001',
         'imagen-4.0-fast-generate-001',
+        'imagen-3.0-generate-002',
+        'imagen-3.0-fast-generate-001',
     ]
 
     for model_name in models_to_try:
@@ -347,7 +564,11 @@ async def generate_character_image(
                 print(f"No generated_images in response from {model_name}")
 
         except Exception as e:
-            print(f"Model {model_name} failed: {e}")
+            error_str = str(e)
+            print(f"Model {model_name} failed: {error_str}")
+            # 429 할당량 초과 시 다음 모델로 빠르게 넘어감
+            if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str:
+                print(f"Quota exceeded for {model_name}, trying next model...")
             continue
 
     # 모든 모델 실패 시 placeholder 반환
@@ -485,10 +706,12 @@ ABSOLUTE REQUIREMENTS:
 
 DO NOT include: text, watermarks, multiple characters, Western/Caucasian features, deformed anatomy, different character design"""
 
-    # Imagen 4.0 모델로 생성
+    # Imagen 모델 (4.0 -> 3.0 폴백)
     models_to_try = [
         'imagen-4.0-generate-001',
         'imagen-4.0-fast-generate-001',
+        'imagen-3.0-generate-002',
+        'imagen-3.0-fast-generate-001',
     ]
 
     for model_name in models_to_try:
@@ -517,7 +740,10 @@ DO NOT include: text, watermarks, multiple characters, Western/Caucasian feature
                         return (f"/static/images/characters/{image_filename}", event['description'])
 
         except Exception as e:
-            print(f"Special event image generation failed with {model_name}: {e}")
+            error_str = str(e)
+            print(f"Special event image generation failed with {model_name}: {error_str}")
+            if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str:
+                print(f"Quota exceeded for {model_name}, trying next model...")
             continue
 
     # 실패 시 placeholder

@@ -23,7 +23,8 @@ class TestBuildExpressionPrompt:
             expression="happy"
         )
 
-        assert "female" in prompt.lower()
+        # The prompt uses "woman" for female, "man" for male
+        assert "woman" in prompt.lower()
 
     def test_build_expression_prompt_contains_style(self):
         """
@@ -64,14 +65,15 @@ class TestBuildExpressionPrompt:
 
         assert "jealous" in prompt.lower()
 
-    def test_expression_types_constant_has_six_expressions(self):
+    def test_expression_types_constant_has_seven_expressions(self):
         """
-        EXPRESSION_TYPES should contain exactly 6 expressions.
+        EXPRESSION_TYPES should contain exactly 7 expressions.
         """
-        assert len(EXPRESSION_TYPES) == 6
+        assert len(EXPRESSION_TYPES) == 7
         assert "neutral" in EXPRESSION_TYPES
         assert "happy" in EXPRESSION_TYPES
         assert "sad" in EXPRESSION_TYPES
         assert "jealous" in EXPRESSION_TYPES
         assert "shy" in EXPRESSION_TYPES
         assert "excited" in EXPRESSION_TYPES
+        assert "disgusted" in EXPRESSION_TYPES

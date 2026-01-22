@@ -38,6 +38,7 @@ class CharacterExpressionResponse(BaseModel):
     id: UUID
     expression_type: str
     image_url: str
+    video_url: str | None = None  # 애니메이션 비디오 URL
 
     model_config = ConfigDict(from_attributes=True)
 
