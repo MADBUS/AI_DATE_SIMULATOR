@@ -9,6 +9,9 @@ from pydantic import BaseModel
 from app.core.database import get_db
 from app.models import GameSession, Scene
 from app.models.game import CharacterExpression, SpecialEventImage, CharacterSetting
+import logging
+
+logger = logging.getLogger(__name__)
 from app.models.user import User
 from app.schemas.game import SceneResponse, ChoiceResponse
 from app.services.gemini_service import (
@@ -226,11 +229,11 @@ async def check_special_event(session_id: UUID, db: AsyncSession = Depends(get_d
                 )
             )
             shown_event_types = [row[0] for row in prev_events_result.fetchall()]
-            print(f"[SpecialEvent] Already shown events: {shown_event_types}")
+            logger.info(f"[SpecialEvent] Already shown events: {shown_event_types}")
 
             # ========== NTR 캐릭터: 원래 주인의 이미지 먼저 사용 ==========
             if session.is_stolen and session.stolen_from_session_id:
-                print(f"[SpecialEvent] Stolen character! Checking original session: {session.stolen_from_session_id}")
+                logger.info(f"[SpecialEvent] Stolen character! Checking original session: {session.stolen_from_session_id}")
 
                 # 원래 세션의 특별 이벤트 이미지 조회
                 original_images_result = await db.execute(
@@ -249,7 +252,7 @@ async def check_special_event(session_id: UUID, db: AsyncSession = Depends(get_d
                 if unseen_images:
                     # 아직 보지 않은 이미지가 있으면 그것을 사용
                     reuse_image = unseen_images[0]
-                    print(f"[SpecialEvent] Reusing image from original owner: {reuse_image.event_type}")
+                    logger.info(f"[SpecialEvent] Reusing image from original owner: {reuse_image.event_type}")
 
                     # 현재 세션에 이미지 기록 복사 (이미 본 것으로 표시)
                     new_event_image = SpecialEventImage(
@@ -269,7 +272,70 @@ async def check_special_event(session_id: UUID, db: AsyncSession = Depends(get_d
                         show_minigame=True,
                     )
                 else:
-                    print(f"[SpecialEvent] All original images shown, generating new one")
+                    logger.info(f"[SpecialEvent] All original images shown, checking other users")
+
+            # ========== 다른 사용자의 같은 캐릭터 설정에서 이벤트 이미지 재사용 ==========
+            # Gemini API 호출 최소화를 위해 기존 이미지 재사용
+            import json
+            current_design_str = json.dumps(char_setting.character_design, sort_keys=True) if char_setting.character_design else None
+
+            if current_design_str:
+                # 같은 캐릭터 디자인을 가진 다른 세션들의 이벤트 이미지 조회
+                other_sessions_result = await db.execute(
+                    select(CharacterSetting.session_id)
+                    .where(
+                        CharacterSetting.gender == char_setting.gender,
+                        CharacterSetting.style == char_setting.style,
+                        CharacterSetting.mbti == char_setting.mbti,
+                        CharacterSetting.art_style == char_setting.art_style,
+                        CharacterSetting.session_id != session_id,
+                    )
+                )
+                other_session_ids = [row[0] for row in other_sessions_result.fetchall()]
+
+                logger.info(f"[SpecialEvent] Found {len(other_session_ids)} other sessions with same settings")
+
+                if other_session_ids:
+                    # 다른 세션들의 이벤트 이미지 조회
+                    reusable_images_result = await db.execute(
+                        select(SpecialEventImage).where(
+                            SpecialEventImage.session_id.in_(other_session_ids)
+                        )
+                    )
+                    reusable_images = reusable_images_result.scalars().all()
+
+                    # 현재 사용자가 보지 않은 이벤트 타입 찾기
+                    unseen_reusable = [
+                        img for img in reusable_images
+                        if img.event_type not in shown_event_types
+                    ]
+
+                    logger.info(f"[SpecialEvent] Found {len(unseen_reusable)} unseen reusable images")
+
+                    if unseen_reusable:
+                        # 재사용할 이미지 선택 (첫 번째 것)
+                        reuse_image = unseen_reusable[0]
+                        logger.info(f"[SpecialEvent] Reusing image from other user: {reuse_image.event_type}")
+
+                        # 현재 세션에 이미지 기록 복사
+                        new_event_image = SpecialEventImage(
+                            session_id=session_id,
+                            event_type=reuse_image.event_type,
+                            image_url=reuse_image.image_url,
+                            video_url=reuse_image.video_url,
+                            is_nsfw=reuse_image.is_nsfw,
+                        )
+                        db.add(new_event_image)
+                        await db.commit()
+
+                        return SpecialEventResponse(
+                            is_special_event=True,
+                            special_image_url=reuse_image.image_url,
+                            event_description=f"특별한 순간... ({reuse_image.event_type})",
+                            show_minigame=True,
+                        )
+
+            logger.info(f"[SpecialEvent] No reusable images found, generating new one")
 
             # ========== 새 이미지 생성 (Gemini API) ==========
             # neutral 표정 이미지 가져오기 (캐릭터 참조용)
@@ -303,7 +369,7 @@ async def check_special_event(session_id: UUID, db: AsyncSession = Depends(get_d
             )
             db.add(new_event_image)
             await db.commit()
-            print(f"[SpecialEvent] Saved new event: {event_name}")
+            logger.info(f"[SpecialEvent] Saved new event: {event_name}")
         else:
             # 캐릭터 설정이 없는 경우 placeholder
             special_image_url = f"https://placehold.co/1024x768/FF69B4/FFFFFF?text=Special+Event+Scene+{session.current_scene}"
@@ -401,8 +467,10 @@ async def submit_minigame_result(
         message = "미니게임 실패... 다음 기회를 노려보세요."
 
     # 호감도 적용 (0~100 범위 유지)
+    old_affection = session.affection
     new_affection = max(0, min(100, session.affection + affection_change))
     session.affection = new_affection
+    logger.info(f"[Minigame] Affection change: {old_affection} + {affection_change} = {new_affection} (is_pvp={request.is_pvp})")
 
     # 엔딩 조건 체크
     game_ended = False
@@ -411,6 +479,7 @@ async def submit_minigame_result(
     stolen_character_id = None
 
     if new_affection <= 0:
+        logger.info(f"[Minigame] Triggering SAD ENDING (new_affection={new_affection})")
         # Sad Ending
         session.status = "sad_ending"
         game_ended = True
@@ -418,59 +487,120 @@ async def submit_minigame_result(
         message = "호감도가 0이 되었습니다... 💔 Sad Ending"
 
         # PvP에서 호감도 0이 되면 캐릭터 뺏김 처리
+        logger.info(f"[CharacterSteal] Checking steal conditions: is_pvp={request.is_pvp}, opponent_session_id={request.opponent_session_id}")
         if request.is_pvp and request.opponent_session_id:
-            # 상대방 세션 조회
-            opponent_result = await db.execute(
-                select(GameSession).where(GameSession.id == UUID(request.opponent_session_id))
-            )
-            opponent_session = opponent_result.scalar_one_or_none()
+            # 상대방 세션 조회 (승자의 세션)
+            try:
+                opponent_uuid = UUID(request.opponent_session_id)
+                logger.info(f"[CharacterSteal] Looking for opponent session: {opponent_uuid}")
+            except ValueError as e:
+                logger.error(f"[CharacterSteal] Invalid opponent_session_id: {request.opponent_session_id}, error: {e}")
+                opponent_uuid = None
 
-            if opponent_session:
-                # 현재 세션의 캐릭터 설정 조회
-                char_result = await db.execute(
-                    select(CharacterSetting).where(CharacterSetting.session_id == session_id)
+            if opponent_uuid:
+                opponent_result = await db.execute(
+                    select(GameSession).where(GameSession.id == opponent_uuid)
                 )
-                original_char = char_result.scalar_one_or_none()
+                opponent_session = opponent_result.scalar_one_or_none()
+                logger.info(f"[CharacterSteal] Opponent session found: {opponent_session is not None}")
 
-                if original_char:
-                    # 새 게임 세션 생성 (뺏은 캐릭터용)
-                    new_session = GameSession(
-                        user_id=opponent_session.user_id,
-                        affection=30,  # 호감도 30으로 시작
-                        current_scene=1,
-                        status="playing",
-                        save_slot=0,  # 뺏은 캐릭터는 슬롯 0
-                        is_stolen=True,
-                        original_owner_id=session.user_id,
-                        stolen_from_session_id=session_id,
+                if opponent_session:
+                    # 현재 세션(패자)의 캐릭터 설정 조회
+                    char_result = await db.execute(
+                        select(CharacterSetting).where(CharacterSetting.session_id == session_id)
                     )
-                    db.add(new_session)
-                    await db.flush()
+                    original_char = char_result.scalar_one_or_none()
+                    logger.info(f"[CharacterSteal] Original character setting found: {original_char is not None}")
 
-                    # 캐릭터 설정 복사
-                    new_char = CharacterSetting(
-                        session_id=new_session.id,
-                        gender=original_char.gender,
-                        style=original_char.style,
-                        mbti=original_char.mbti,
-                        art_style=original_char.art_style,
-                        character_design=original_char.character_design,
-                    )
-                    db.add(new_char)
+                    if original_char:
+                        # 새 게임 세션 생성 (뺏은 캐릭터용)
+                        new_session = GameSession(
+                            user_id=opponent_session.user_id,
+                            affection=30,  # 호감도 30으로 시작
+                            current_scene=1,
+                            status="playing",
+                            save_slot=0,  # 뺏은 캐릭터는 슬롯 0
+                            is_stolen=True,
+                            original_owner_id=session.user_id,
+                            stolen_from_session_id=session_id,
+                        )
+                        db.add(new_session)
+                        await db.flush()
+                        logger.info(f"[CharacterSteal] New session created: {new_session.id}")
 
-                    character_stolen = True
-                    stolen_character_id = str(new_session.id)
-                    message = "상대방의 캐릭터를 뺏었습니다! 🏆💕"
+                        # 캐릭터 설정 복사
+                        new_char = CharacterSetting(
+                            session_id=new_session.id,
+                            gender=original_char.gender,
+                            style=original_char.style,
+                            mbti=original_char.mbti,
+                            art_style=original_char.art_style,
+                            character_design=original_char.character_design,
+                        )
+                        db.add(new_char)
+                        await db.flush()
+                        logger.info(f"[CharacterSteal] New character setting created: {new_char.id}")
+
+                        # 캐릭터 표정(expression) 이미지 복사
+                        expr_result = await db.execute(
+                            select(CharacterExpression).where(CharacterExpression.setting_id == original_char.id)
+                        )
+                        original_expressions = expr_result.scalars().all()
+                        logger.info(f"[CharacterSteal] Found {len(original_expressions)} expressions to copy")
+
+                        for orig_expr in original_expressions:
+                            new_expr = CharacterExpression(
+                                setting_id=new_char.id,
+                                expression_type=orig_expr.expression_type,
+                                image_url=orig_expr.image_url,
+                                video_url=orig_expr.video_url,
+                            )
+                            db.add(new_expr)
+
+                        character_stolen = True
+                        stolen_character_id = str(new_session.id)
+                        message = "호감도가 0이 되어 상대방에게 캐릭터를 뺏겼습니다... 💔"
+                        logger.info(f"[CharacterSteal] Character stolen successfully! New session: {stolen_character_id}")
+                    else:
+                        logger.warning(f"[CharacterSteal] No character setting found for session: {session_id}")
+                else:
+                    logger.warning(f"[CharacterSteal] Opponent session not found: {opponent_uuid}")
 
     elif new_affection >= 100:
         # Happy Ending
+        logger.info(f"[Minigame] Triggering HAPPY ENDING (new_affection={new_affection})")
         session.status = "happy_ending"
         game_ended = True
         ending_type = "happy_ending"
         message = "호감도가 MAX! 💕🎉 Happy Ending!"
 
+    # PvP 승리 시: 상대방 캐릭터를 뺏었는지 확인 (상대방이 먼저 API 호출한 경우)
+    if request.is_pvp and request.success and request.opponent_session_id and not character_stolen:
+        logger.info(f"[CharacterSteal] Checking if winner received a stolen character")
+        try:
+            opponent_uuid = UUID(request.opponent_session_id)
+            # 상대방 세션에서 뺏어온 캐릭터가 있는지 확인
+            stolen_result = await db.execute(
+                select(GameSession).where(
+                    GameSession.user_id == session.user_id,
+                    GameSession.is_stolen == True,
+                    GameSession.stolen_from_session_id == opponent_uuid
+                )
+            )
+            stolen_session = stolen_result.scalar_one_or_none()
+
+            if stolen_session:
+                logger.info(f"[CharacterSteal] Winner found stolen character: {stolen_session.id}")
+                character_stolen = True
+                stolen_character_id = str(stolen_session.id)
+                message = f"PvP 승리! 상대방의 캐릭터를 뺏었습니다! 🏆💕 호감도 +{affection_change}"
+        except Exception as e:
+            logger.error(f"[CharacterSteal] Error checking stolen character: {e}")
+
     await db.commit()
     await db.refresh(session)
+
+    logger.info(f"[Minigame] Returning: game_ended={game_ended}, ending_type={ending_type}, new_affection={new_affection}, character_stolen={character_stolen}")
 
     return MinigameResultResponse(
         affection_change=affection_change,
