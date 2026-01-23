@@ -121,12 +121,13 @@ async def pvp_match_websocket(
 
     except WebSocketDisconnect:
         # 연결 종료 시 큐에서 제거
+        print(f"[PvP] WebSocket disconnected: {session_id}")
         if str(session_id) in matching_queue:
             del matching_queue[str(session_id)]
         # 게임 방에서도 제거
         await cleanup_player_from_games(str(session_id))
     except Exception as e:
-        print(f"WebSocket error: {e}")
+        print(f"[PvP] WebSocket error for {session_id}: {e}")
         if str(session_id) in matching_queue:
             del matching_queue[str(session_id)]
         await cleanup_player_from_games(str(session_id))
@@ -411,9 +412,11 @@ async def send_game_result(room_id: str, winner: dict, loser: dict):
 
 async def cleanup_player_from_games(player_id: str):
     """플레이어가 연결 종료 시 게임 방에서 정리"""
+    print(f"[PvP] Cleaning up player {player_id} from games. Active games: {list(active_games.keys())}")
     for room_id, game in list(active_games.items()):
         if game["player1"]["session_id"] == player_id:
             # 상대방에게 승리 알림
+            print(f"[PvP] Player1 {player_id} disconnected from room {room_id}, notifying player2")
             try:
                 await game["player2"]["websocket"].send_json({
                     "type": "pvp_result",
@@ -422,11 +425,13 @@ async def cleanup_player_from_games(player_id: str):
                     "final_bet": game["player1"]["bet"],
                     "reason": "opponent_disconnected",
                 })
-            except Exception:
-                pass
+                print(f"[PvP] Sent pvp_result to player2 in room {room_id}")
+            except Exception as e:
+                print(f"[PvP] Failed to notify player2: {e}")
             del active_games[room_id]
             break
         elif game["player2"]["session_id"] == player_id:
+            print(f"[PvP] Player2 {player_id} disconnected from room {room_id}, notifying player1")
             try:
                 await game["player1"]["websocket"].send_json({
                     "type": "pvp_result",
@@ -435,7 +440,8 @@ async def cleanup_player_from_games(player_id: str):
                     "final_bet": game["player2"]["bet"],
                     "reason": "opponent_disconnected",
                 })
-            except Exception:
-                pass
+                print(f"[PvP] Sent pvp_result to player1 in room {room_id}")
+            except Exception as e:
+                print(f"[PvP] Failed to notify player1: {e}")
             del active_games[room_id]
             break
