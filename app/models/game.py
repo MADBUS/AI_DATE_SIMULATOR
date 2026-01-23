@@ -29,6 +29,9 @@ class GameSession(Base):
     original_owner_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
     )  # 뺏긴 캐릭터의 원래 소유자
+    stolen_from_session_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("game_sessions.id"), nullable=True
+    )  # 뺏은 캐릭터의 원래 세션 ID (기존 이미지 재사용용)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
@@ -41,6 +44,7 @@ class GameSession(Base):
     # Relationships
     user = relationship("User", back_populates="game_sessions", foreign_keys=[user_id])
     original_owner = relationship("User", foreign_keys=[original_owner_id])
+    stolen_from_session = relationship("GameSession", remote_side=[id], foreign_keys=[stolen_from_session_id])
     character = relationship("Character", back_populates="game_sessions")
     scenes = relationship("Scene", back_populates="session")
     character_setting = relationship("CharacterSetting", back_populates="session", uselist=False)

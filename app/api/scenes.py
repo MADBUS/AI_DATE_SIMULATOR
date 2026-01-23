@@ -210,6 +210,59 @@ async def check_special_event(session_id: UUID, db: AsyncSession = Depends(get_d
                 )
                 char_setting.character_design = character_design
 
+            # 현재 세션에서 이미 본 이벤트 타입 조회
+            prev_events_result = await db.execute(
+                select(SpecialEventImage.event_type).where(
+                    SpecialEventImage.session_id == session_id
+                )
+            )
+            shown_event_types = [row[0] for row in prev_events_result.fetchall()]
+            print(f"[SpecialEvent] Already shown events: {shown_event_types}")
+
+            # ========== NTR 캐릭터: 원래 주인의 이미지 먼저 사용 ==========
+            if session.is_stolen and session.stolen_from_session_id:
+                print(f"[SpecialEvent] Stolen character! Checking original session: {session.stolen_from_session_id}")
+
+                # 원래 세션의 특별 이벤트 이미지 조회
+                original_images_result = await db.execute(
+                    select(SpecialEventImage).where(
+                        SpecialEventImage.session_id == session.stolen_from_session_id
+                    )
+                )
+                original_images = original_images_result.scalars().all()
+
+                # 아직 보지 않은 이미지 찾기
+                unseen_images = [
+                    img for img in original_images
+                    if img.event_type not in shown_event_types
+                ]
+
+                if unseen_images:
+                    # 아직 보지 않은 이미지가 있으면 그것을 사용
+                    reuse_image = unseen_images[0]
+                    print(f"[SpecialEvent] Reusing image from original owner: {reuse_image.event_type}")
+
+                    # 현재 세션에 이미지 기록 복사 (이미 본 것으로 표시)
+                    new_event_image = SpecialEventImage(
+                        session_id=session_id,
+                        event_type=reuse_image.event_type,
+                        image_url=reuse_image.image_url,
+                        video_url=reuse_image.video_url,
+                        is_nsfw=reuse_image.is_nsfw,
+                    )
+                    db.add(new_event_image)
+                    await db.commit()
+
+                    return SpecialEventResponse(
+                        is_special_event=True,
+                        special_image_url=reuse_image.image_url,
+                        event_description=f"뺏은 캐릭터의 추억... ({reuse_image.event_type})",
+                        show_minigame=True,
+                    )
+                else:
+                    print(f"[SpecialEvent] All original images shown, generating new one")
+
+            # ========== 새 이미지 생성 (Gemini API) ==========
             # neutral 표정 이미지 가져오기 (캐릭터 참조용)
             neutral_image_url = None
             expr_result = await db.execute(
@@ -222,22 +275,13 @@ async def check_special_event(session_id: UUID, db: AsyncSession = Depends(get_d
             if neutral_expr:
                 neutral_image_url = neutral_expr.image_url
 
-            # 이전에 사용된 이벤트 타입 조회 (중복 방지)
-            prev_events_result = await db.execute(
-                select(SpecialEventImage.event_type).where(
-                    SpecialEventImage.session_id == session_id
-                )
-            )
-            previous_events = [row[0] for row in prev_events_result.fetchall()]
-            print(f"[SpecialEvent] Previous events: {previous_events}")
-
             # 전신 이벤트 씬 이미지 생성 (Gemini API로 동적 생성, 이전 이벤트 제외)
             special_image_url, event_description, event_name = await generate_special_event_image(
                 gender=char_setting.gender,
                 style=char_setting.style,
                 art_style=char_setting.art_style or "anime",
                 character_design=character_design,
-                previous_events=previous_events,
+                previous_events=shown_event_types,
                 reference_image_url=neutral_image_url,
             )
 

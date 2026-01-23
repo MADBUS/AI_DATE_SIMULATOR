@@ -46,7 +46,7 @@ class CharacterStealService:
 
         Args:
             winner_user_id: 승자 user_id
-            loser_session_id: 패자 session_id (캐릭터 정보 복사용)
+            loser_session_id: 패자 session_id (캐릭터 정보 복사용, 특별 이미지 재사용용)
             loser_user_id: 패자 user_id (original_owner_id로 저장)
 
         Returns:
@@ -55,7 +55,8 @@ class CharacterStealService:
                 "new_user_id": str,
                 "new_affection": int,
                 "is_stolen": bool,
-                "original_owner_id": str
+                "original_owner_id": str,
+                "stolen_from_session_id": str
             }
         """
         new_session_id = str(uuid.uuid4())
@@ -66,6 +67,7 @@ class CharacterStealService:
             "new_affection": self.STOLEN_CHARACTER_INITIAL_AFFECTION,
             "is_stolen": True,
             "original_owner_id": loser_user_id,
+            "stolen_from_session_id": loser_session_id,  # 원래 세션 ID (특별 이미지 재사용용)
         }
 
     async def mark_session_as_stolen(self, session_id: str) -> dict:
@@ -109,7 +111,8 @@ class CharacterStealService:
                 "new_user_id": str,
                 "new_affection": int,
                 "is_stolen": bool,
-                "original_owner_id": str
+                "original_owner_id": str,
+                "stolen_from_session_id": str
             }
         """
         # 패자 세션 마킹
