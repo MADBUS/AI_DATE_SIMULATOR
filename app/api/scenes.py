@@ -32,6 +32,8 @@ class SpecialEventResponse(BaseModel):
 
 class MinigameResultRequest(BaseModel):
     success: bool
+    is_pvp: bool = False  # PvP 게임 여부
+    bet_amount: int = 0   # PvP 베팅 금액
 
 
 class MinigameResultResponse(BaseModel):
@@ -372,12 +374,22 @@ async def submit_minigame_result(
         raise HTTPException(status_code=400, detail="Game already ended")
 
     # 미니게임 결과에 따른 호감도 변화
-    if request.success:
-        # 성공: +10 ~ +15 대폭 상승
+    if request.is_pvp:
+        # PvP 게임: 베팅 금액만큼 호감도 변화
+        if request.success:
+            # 승리: 베팅 금액만큼 획득
+            affection_change = request.bet_amount
+            message = f"PvP 승리! 호감도 +{affection_change} 획득! 🏆💕"
+        else:
+            # 패배: 베팅 금액만큼 손실
+            affection_change = -request.bet_amount
+            message = f"PvP 패배... 호감도 {affection_change} 손실 💔"
+    elif request.success:
+        # 솔로 미니게임 성공: +10 ~ +15 대폭 상승
         affection_change = random.randint(10, 15)
         message = "미니게임 성공! 호감도가 대폭 상승했습니다! 💕"
     else:
-        # 실패: -2 ~ -3 소폭 하락
+        # 솔로 미니게임 실패: -2 ~ -3 소폭 하락
         affection_change = random.randint(-3, -2)
         message = "미니게임 실패... 다음 기회를 노려보세요."
 
