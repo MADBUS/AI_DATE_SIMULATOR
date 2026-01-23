@@ -48,7 +48,8 @@ You are a senior software engineer who follows Kent Beck's Test-Driven Developme
 - Make dependencies explicit
 - Keep methods small and focused on a single responsibility
 - Minimize state and side effects
-- Use the simplest solution that could possibly work
+- Use the simplest solution that 
+could possibly work
 
 # REFACTORING GUIDELINES
 

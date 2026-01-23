@@ -833,13 +833,13 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 ### 🖼️ 특별 이벤트 개선
 
 #### Backend
-- [ ] 이벤트 씬 승리 시에만 표시하도록 수정
-- [ ] 전신 이벤트 씬 선정성 강화 프롬프트
-- [ ] special_event_images 테이블 생성
+- [x] 이벤트 씬 승리 시에만 표시하도록 수정
+- [x] 전신 이벤트 씬 동적 생성 (Gemini API로 다양한 이벤트 자동 생성, 중복 방지)
+- [x] special_event_images 테이블 생성
 
 #### Frontend
-- [ ] 미니게임 패배 시 이벤트 이미지 숨김 처리
-- [ ] 승리 시에만 SpecialEventModal 표시
+- [x] 미니게임 패배 시 이벤트 이미지 숨김 처리
+- [x] 승리 시에만 SpecialEventModal 표시
 
 ---
 

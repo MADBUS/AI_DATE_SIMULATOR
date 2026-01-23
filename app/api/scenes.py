@@ -8,7 +8,7 @@ from pydantic import BaseModel
 
 from app.core.database import get_db
 from app.models import GameSession, Scene
-from app.models.game import CharacterExpression
+from app.models.game import CharacterExpression, SpecialEventImage
 from app.models.user import User
 from app.schemas.game import SceneResponse, ChoiceResponse
 from app.services.gemini_service import (
@@ -38,6 +38,7 @@ class MinigameResultResponse(BaseModel):
     affection_change: int
     new_affection: int
     message: str
+    show_event_scene: bool  # True only when minigame success
 
 
 class SpecialImageResponse(BaseModel):
@@ -65,7 +66,37 @@ async def generate_scene(session_id: UUID, db: AsyncSession = Depends(get_db)):
     if session.status != "playing":
         raise HTTPException(status_code=400, detail="Game already ended")
 
-    # 이전 씬 조회 (대화 맥락을 위해)
+    # 이미 해당 씬이 존재하는지 확인 (중복 방지)
+    existing_scene_result = await db.execute(
+        select(Scene)
+        .where(
+            Scene.session_id == session_id,
+            Scene.scene_number == session.current_scene
+        )
+        .order_by(Scene.created_at.desc())
+        .limit(1)
+    )
+    existing_scene = existing_scene_result.scalar_one_or_none()
+    if existing_scene:
+        # 이미 존재하면 기존 씬 반환
+        return SceneResponse(
+            scene_number=existing_scene.scene_number,
+            image_url=existing_scene.image_url,
+            dialogue=existing_scene.dialogue_text,
+            choices=[
+                ChoiceResponse(
+                    id=i,
+                    text=c["text"],
+                    delta=c["delta"],
+                    expression=c.get("expression", "neutral"),
+                )
+                for i, c in enumerate(existing_scene.choices_offered or [])
+            ],
+            affection=session.affection,
+            status=session.status,
+        )
+
+    # 이전 씬 조회 (대화 맥락을 위해) - .first() 사용으로 중복 에러 방지
     previous_choice = None
     previous_dialogue = None
     if session.current_scene > 1:
@@ -75,6 +106,8 @@ async def generate_scene(session_id: UUID, db: AsyncSession = Depends(get_db)):
                 Scene.session_id == session_id,
                 Scene.scene_number == session.current_scene - 1
             )
+            .order_by(Scene.created_at.desc())
+            .limit(1)
         )
         prev_scene = prev_scene_result.scalar_one_or_none()
         if prev_scene:
@@ -166,11 +199,16 @@ async def check_special_event(session_id: UUID, db: AsyncSession = Depends(get_d
         # 캐릭터 설정 가져오기
         char_setting = session.character_setting
         if char_setting:
-            # 캐릭터 디자인 생성 (일관성 유지를 위해)
-            character_design = get_character_design(
-                gender=char_setting.gender,
-                style=char_setting.style,
-            )
+            # 저장된 캐릭터 디자인 사용 (일관성 유지)
+            # 저장된 디자인이 없으면 새로 생성하고 저장
+            if char_setting.character_design:
+                character_design = char_setting.character_design
+            else:
+                character_design = get_character_design(
+                    gender=char_setting.gender,
+                    style=char_setting.style,
+                )
+                char_setting.character_design = character_design
 
             # neutral 표정 이미지 가져오기 (캐릭터 참조용)
             neutral_image_url = None
@@ -184,14 +222,35 @@ async def check_special_event(session_id: UUID, db: AsyncSession = Depends(get_d
             if neutral_expr:
                 neutral_image_url = neutral_expr.image_url
 
-            # 전신 이벤트 씬 이미지 생성 (neutral 이미지 참조)
-            special_image_url, event_description = await generate_special_event_image(
+            # 이전에 사용된 이벤트 타입 조회 (중복 방지)
+            prev_events_result = await db.execute(
+                select(SpecialEventImage.event_type).where(
+                    SpecialEventImage.session_id == session_id
+                )
+            )
+            previous_events = [row[0] for row in prev_events_result.fetchall()]
+            print(f"[SpecialEvent] Previous events: {previous_events}")
+
+            # 전신 이벤트 씬 이미지 생성 (Gemini API로 동적 생성, 이전 이벤트 제외)
+            special_image_url, event_description, event_name = await generate_special_event_image(
                 gender=char_setting.gender,
                 style=char_setting.style,
                 art_style=char_setting.art_style or "anime",
                 character_design=character_design,
+                previous_events=previous_events,
                 reference_image_url=neutral_image_url,
             )
+
+            # 새 이벤트를 DB에 저장 (중복 방지용 기록)
+            new_event_image = SpecialEventImage(
+                session_id=session_id,
+                event_type=event_name,
+                image_url=special_image_url,
+                is_nsfw=False,
+            )
+            db.add(new_event_image)
+            await db.commit()
+            print(f"[SpecialEvent] Saved new event: {event_name}")
         else:
             # 캐릭터 설정이 없는 경우 placeholder
             special_image_url = f"https://placehold.co/1024x768/FF69B4/FFFFFF?text=Special+Event+Scene+{session.current_scene}"
@@ -289,4 +348,5 @@ async def submit_minigame_result(
         affection_change=affection_change,
         new_affection=new_affection,
         message=message,
+        show_event_scene=request.success,  # 승리 시에만 이벤트 씬 표시
     )

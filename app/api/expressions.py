@@ -1,7 +1,7 @@
 """
 Character Expressions API
 TASK-007: 표정 이미지 7종 사전 생성
-Phase 2: 표정별 애니메이션 비디오 생성 추가
+Note: 비디오 생성은 API 부하로 인해 비활성화됨
 """
 
 from uuid import UUID
@@ -15,7 +15,6 @@ from app.models.game import GameSession, CharacterSetting, CharacterExpression
 from app.schemas.character import CharacterExpressionResponse, ExpressionsGeneratedResponse
 from app.services.gemini_service import (
     generate_character_image,
-    generate_character_video,
     get_character_design,
 )
 
@@ -35,15 +34,16 @@ async def generate_expressions(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Generate 7 expression images and videos for a game session's character.
+    Generate 7 expression images for a game session's character.
 
     This endpoint:
     1. Validates that the game session exists
     2. Validates that the session has character settings
     3. Generates 7 expression images (neutral, happy, sad, jealous, shy, excited, disgusted)
-    4. Generates 7 expression animation videos using Veo model
-    5. Saves them to the database
-    6. Returns the generated expressions
+    4. Saves them to the database
+    5. Returns the generated expressions
+
+    Note: Video generation is disabled due to API load constraints.
     """
     # Check if game session exists
     result = await db.execute(
@@ -70,24 +70,22 @@ async def generate_expressions(
     expressions = []
 
     # 캐릭터 디자인을 한 번만 생성 (모든 표정에서 동일한 캐릭터 유지)
-    character_design = get_character_design(
-        gender=character_setting.gender,
-        style=character_setting.style,
-    )
+    # 이미 저장된 디자인이 있으면 재사용, 없으면 새로 생성
+    if character_setting.character_design:
+        character_design = character_setting.character_design
+    else:
+        character_design = get_character_design(
+            gender=character_setting.gender,
+            style=character_setting.style,
+        )
+        # 생성된 디자인을 CharacterSetting에 저장
+        character_setting.character_design = character_design
 
-    # Generate expression images and videos using Gemini API (동일 캐릭터 디자인 사용)
+    # Generate expression images using Gemini API (동일 캐릭터 디자인 사용)
+    # 비디오 생성은 API 부하로 인해 비활성화
     for expression_type in EXPRESSION_TYPES:
         # 이미지 생성 (Imagen 4.0)
         image_url = await generate_character_image(
-            gender=character_setting.gender,
-            style=character_setting.style,
-            art_style=character_setting.art_style or "anime",
-            expression=expression_type,
-            character_design=character_design,
-        )
-
-        # 비디오 생성 (Veo 2.0)
-        video_url = await generate_character_video(
             gender=character_setting.gender,
             style=character_setting.style,
             art_style=character_setting.art_style or "anime",
@@ -99,7 +97,7 @@ async def generate_expressions(
             setting_id=character_setting.id,
             expression_type=expression_type,
             image_url=image_url,
-            video_url=video_url,
+            video_url=None,  # 비디오 비활성화
         )
         db.add(expression)
         expressions.append(expression)

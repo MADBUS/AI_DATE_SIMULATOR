@@ -45,6 +45,7 @@ class GameSession(Base):
     scenes = relationship("Scene", back_populates="session")
     character_setting = relationship("CharacterSetting", back_populates="session", uselist=False)
     minigame_results = relationship("MinigameResult", back_populates="session")
+    special_event_images = relationship("SpecialEventImage", back_populates="session")
 
 
 class Scene(Base):
@@ -115,6 +116,7 @@ class CharacterSetting(Base):
     style: Mapped[str] = mapped_column(String(50))  # 'tsundere', 'cool', 'cute', 'sexy', 'pure'
     mbti: Mapped[str] = mapped_column(String(4))  # 'INTJ', 'ENFP', etc.
     art_style: Mapped[str] = mapped_column(String(50))  # 'anime', 'realistic', 'watercolor'
+    character_design: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # 캐릭터 외모 정보 (hair, eyes, outfit, features)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     # Relationships
@@ -158,3 +160,23 @@ class MinigameResult(Base):
 
     # Relationships
     session = relationship("GameSession", back_populates="minigame_results")
+
+
+class SpecialEventImage(Base):
+    """Special event full-body images for minigame rewards."""
+    __tablename__ = "special_event_images"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    session_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("game_sessions.id")
+    )
+    event_type: Mapped[str] = mapped_column(String(50))  # 'romantic_date', 'surprise_gift', etc.
+    image_url: Mapped[str] = mapped_column(Text)
+    video_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    is_nsfw: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    session = relationship("GameSession", back_populates="special_event_images")

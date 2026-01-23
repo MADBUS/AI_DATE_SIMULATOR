@@ -260,43 +260,66 @@ def build_expression_prompt(
     # avoid 항목 가져오기
     avoid_text = art.get('avoid', '')
 
-    prompt = f"""Create a beautiful {art['style']} portrait.
+    prompt = f"""Create a beautiful {art['style']} portrait showing a specific expression.
 
-SUBJECT: An attractive {gender_word} with the following features:
-- Ethnicity: MUST be East Asian (Korean, Japanese, or Chinese) - this is mandatory
-- Hair: {design['hair']}
-- Eyes: {design['eyes']}
-- Outfit: {design['outfit']}
-- Physical features: {design['features']}
+########## CRITICAL: CHARACTER IDENTITY LOCK ##########
+This is generating ONE expression for an EXISTING character.
+The following features are LOCKED and must be EXACTLY reproduced:
 
-CRITICAL ETHNICITY REQUIREMENT:
-- The character MUST have distinctly East Asian facial features
-- Korean/Japanese/Chinese appearance with appropriate bone structure
+[LOCKED - DO NOT CHANGE] HAIR:
+{design['hair']}
+- Hair style, length, color, and texture must be IDENTICAL
+- No changes to bangs, parting, or hair accessories
+
+[LOCKED - DO NOT CHANGE] FACE STRUCTURE:
+{design['features']}
+- Same face shape, jawline, nose, lips
+- Same skin tone and complexion
+- Same facial proportions
+
+[LOCKED - DO NOT CHANGE] OUTFIT:
+{design['outfit']}
+- EXACT same clothing, no variations
+- Same colors, patterns, accessories
+- Same neckline, sleeves, style
+
+[LOCKED - DO NOT CHANGE] EYES:
+{design['eyes']}
+- Same eye shape, color, size
+- Same eyelash style
+##################################################
+
+SUBJECT: An attractive {gender_word}
+- Ethnicity: East Asian (Korean/Japanese) - MANDATORY
 - Asian eye shape (monolid or subtle double eyelid)
 - Fair to light skin tone typical of East Asians
-- DO NOT create Western/Caucasian features
 
-EXPRESSION AND EMOTION:
+THE ONLY THING THAT CHANGES IS THE EXPRESSION:
+Current Expression: {expression.upper()}
 - Face: {expr['face']}
-- Overall mood: {expr['mood']}
+- Mood: {expr['mood']}
 - Eyes showing: {expr['eyes']}
 
-MANDATORY ART STYLE REQUIREMENTS:
+ART STYLE (MANDATORY):
 {art['style']}
 {art['rendering']}
 {art['details']}
 {art['quality']}
 
-COMPOSITION AND LIGHTING:
+COMPOSITION:
 - Upper body portrait, chest-up framing
-- Character looking at the viewer
-- Beautiful soft lighting that enhances the {art_style} aesthetic
-- Aesthetically pleasing gradient background (soft pink, lavender, or warm tones)
-- Perfect composition, visually stunning
+- Character looking at the viewer (unless expression requires otherwise)
+- Soft lighting, gradient background (soft pink/lavender/warm tones)
 
-IMPORTANT - MUST AVOID:
+STRICT RULES:
 {avoid_text}
-DO NOT include: Western/Caucasian features, text, watermarks, signatures, multiple people, extra limbs, deformed features, bad anatomy, ugly, blurry, low quality"""
+- DO NOT change hair style, color, or length
+- DO NOT change outfit or clothing
+- DO NOT change face shape or features
+- DO NOT change eye color or shape
+- ONLY change the facial EXPRESSION
+- NO Western/Caucasian features
+- NO text, watermarks, multiple people, deformed features"""
 
     return prompt
 
@@ -448,8 +471,10 @@ async def generate_character_video(
     """
     prompt = build_video_prompt(gender, style, art_style, expression, character_design)
 
-    # Veo 모델 사용
+    # Veo 모델 사용 (최신 모델 우선)
     models_to_try = [
+        'veo-3.1-generate-preview',
+        'veo-3.0-generate-001',
         'veo-2.0-generate-001',
     ]
 
@@ -466,7 +491,7 @@ async def generate_character_video(
             # 비디오 생성 완료 대기
             while not operation.done:
                 import time
-                time.sleep(5)
+                time.sleep(10)
                 operation = client.operations.get(operation)
 
             if operation.response and operation.response.generated_videos:
@@ -476,14 +501,25 @@ async def generate_character_video(
                 video_filename = f"{video_id}.mp4"
                 video_path = VIDEOS_DIR / video_filename
 
-                # 비디오 데이터 저장
+                # 새로운 API 방식: files.download() 후 save() 사용
                 if hasattr(generated_video, 'video') and generated_video.video:
-                    video_bytes = generated_video.video.video_bytes
-                    if video_bytes and len(video_bytes) > 100:
-                        with open(video_path, 'wb') as f:
-                            f.write(video_bytes)
-                        print(f"Video generated successfully with {model_name}, size: {len(video_bytes)} bytes")
+                    try:
+                        # 파일 다운로드
+                        client.files.download(file=generated_video.video)
+                        # 저장
+                        generated_video.video.save(str(video_path))
+                        print(f"Video generated successfully with {model_name}")
                         return f"/static/videos/characters/{video_filename}"
+                    except Exception as save_error:
+                        print(f"Save method failed, trying direct bytes: {save_error}")
+                        # 폴백: 직접 바이트 저장 시도
+                        if hasattr(generated_video.video, 'video_bytes'):
+                            video_bytes = generated_video.video.video_bytes
+                            if video_bytes and len(video_bytes) > 100:
+                                with open(video_path, 'wb') as f:
+                                    f.write(video_bytes)
+                                print(f"Video saved via bytes fallback, size: {len(video_bytes)} bytes")
+                                return f"/static/videos/characters/{video_filename}"
 
             print(f"No video data in response from {model_name}")
 
@@ -591,39 +627,181 @@ def _get_placeholder_url(expression: str, gender: str, style: str) -> str:
     return f"https://placehold.co/512x512/{color}/333333?text={expression}+{gender}+{style}"
 
 
-# 특별 이벤트 씬 타입
-SPECIAL_EVENT_SCENES = [
-    {
-        "name": "romantic_date",
-        "description": "로맨틱한 데이트 장면",
-        "scene": "romantic sunset date scene, couple watching beautiful sunset together",
-        "mood": "romantic, warm, intimate",
-    },
-    {
-        "name": "surprise_gift",
-        "description": "깜짝 선물 장면",
-        "scene": "receiving a surprise gift, holding a beautifully wrapped present",
-        "mood": "surprised, happy, touched",
-    },
-    {
-        "name": "rain_shelter",
-        "description": "비를 피하는 장면",
-        "scene": "sheltering from rain together under one umbrella, close together",
-        "mood": "intimate, cozy, romantic",
-    },
-    {
-        "name": "festival",
-        "description": "축제 장면",
-        "scene": "at a beautiful festival with fireworks in the background, festive atmosphere",
-        "mood": "excited, joyful, magical",
-    },
-    {
-        "name": "confession",
-        "description": "고백 장면",
-        "scene": "heartfelt confession moment, holding hands, emotional atmosphere",
-        "mood": "nervous, sincere, loving",
-    },
+# 동적 이벤트 씬 생성을 위한 기본 카테고리 (Gemini API가 참고할 힌트)
+EVENT_CATEGORIES = [
+    "bedroom/intimate",      # 침실/친밀한 분위기
+    "bath/spa",              # 목욕/스파 장면
+    "swimwear/beach",        # 수영복/해변
+    "costume/cosplay",       # 코스튬/코스프레
+    "lingerie/sleepwear",    # 란제리/잠옷
+    "gym/workout",           # 운동/피트니스
+    "pool/water",            # 수영장/물놀이
+    "dress_up/party",        # 파티/드레스업
+    "casual_sexy",           # 캐주얼 섹시
+    "traditional/kimono",    # 전통의상
 ]
+
+
+async def generate_dynamic_event_scene(
+    gender: str,
+    style: str,
+    previous_events: list[str] | None = None,
+) -> dict:
+    """
+    Gemini API를 사용하여 동적으로 다양한 이벤트 씬 생성
+
+    Args:
+        gender: 캐릭터 성별 (male/female)
+        style: 캐릭터 성격 (tsundere/cool/cute/sexy/pure)
+        previous_events: 이전에 사용된 이벤트 이름 리스트 (중복 방지용)
+
+    Returns:
+        dict with name, description, scene, mood, outfit
+    """
+    import random
+
+    # 이전 이벤트 목록 (중복 방지)
+    prev_list = previous_events or []
+    prev_str = ", ".join(prev_list) if prev_list else "없음"
+
+    # 성별에 따른 힌트
+    gender_hint = "여성" if gender == "female" else "남성"
+
+    # 성격에 따른 분위기 힌트
+    style_hints = {
+        "tsundere": "츤데레스럽게 부끄러워하면서도 매력적인",
+        "cool": "쿨하고 도도하지만 은근히 섹시한",
+        "cute": "귀엽고 사랑스러우면서 은근히 섹시한",
+        "sexy": "성숙하고 자신감 있는 매혹적인",
+        "pure": "순수하고 청순하지만 은근히 매력적인",
+    }
+    personality_hint = style_hints.get(style, style_hints["cute"])
+
+    prompt = f"""당신은 연애 시뮬레이션 게임의 특별 보상 이벤트 씬 기획자입니다.
+플레이어가 미니게임에서 승리했을 때 보여줄 특별한 보상 이미지 씬을 기획해주세요.
+
+## 캐릭터 정보
+- 성별: {gender_hint}
+- 성격: {personality_hint}
+
+## 이미 사용된 이벤트 (중복 불가)
+{prev_str}
+
+## 요청사항
+1. 위에 나열된 이벤트와 완전히 다른 새로운 상황을 만들어주세요
+2. 섹시하고 매력적이지만 노골적이지 않은 상황
+3. 다양한 장소, 의상, 상황을 창의적으로 조합
+4. 캐릭터의 성격에 어울리는 분위기
+
+## 가능한 테마 힌트 (참고용, 이외의 창의적 상황도 환영)
+- 침실, 목욕/샤워, 해변/수영장, 파티/클럽
+- 운동/요가, 드레스업, 코스프레/코스튬
+- 비오는 날, 온천/스파, 웨딩드레스
+- 세차/워터파크, 댄스, 수면/잠옷
+- 요리/앞치마, 전통의상, 포토샵촬영
+- 승마, 와인/디너, 마사지/휴식
+
+## 출력 형식 (JSON)
+{{
+  "name": "영문_이벤트_이름(snake_case)",
+  "description": "한글로 된 짧은 설명 (10자 이내)",
+  "scene": "영문 상세 장면 묘사 (분위기, 배경, 포즈, 표정 등 구체적으로)",
+  "mood": "영문 분위기 키워드들 (comma separated)",
+  "outfit": "영문 의상 상세 묘사 (섹시하지만 품위있게)"
+}}
+
+JSON만 출력하세요."""
+
+    try:
+        response = client.models.generate_content(
+            model='gemini-2.0-flash',
+            contents=prompt,
+        )
+
+        response_text = response.text.strip()
+
+        # JSON 추출
+        if response_text.startswith("```"):
+            lines = response_text.split("\n")
+            json_lines = []
+            in_json = False
+            for line in lines:
+                if line.startswith("```json"):
+                    in_json = True
+                    continue
+                elif line.startswith("```"):
+                    in_json = False
+                    continue
+                if in_json:
+                    json_lines.append(line)
+            response_text = "\n".join(json_lines)
+
+        event = json.loads(response_text)
+
+        # 필수 필드 검증
+        required_fields = ["name", "description", "scene", "mood", "outfit"]
+        for field in required_fields:
+            if field not in event:
+                raise ValueError(f"Missing field: {field}")
+
+        print(f"[Dynamic Event] Generated: {event['name']} - {event['description']}")
+        return event
+
+    except Exception as e:
+        print(f"Dynamic event generation failed: {e}")
+        # 폴백: 기본 이벤트 생성
+        return _get_fallback_event(gender, style, prev_list)
+
+
+def _get_fallback_event(gender: str, style: str, previous_events: list[str]) -> dict:
+    """동적 이벤트 생성 실패 시 폴백 이벤트"""
+    import random
+
+    # 기본 폴백 이벤트 풀
+    fallback_events = [
+        {
+            "name": "bedroom_morning",
+            "description": "아침 침대 장면",
+            "scene": "waking up in bed in the morning, sitting on luxurious silk sheets, messy bed hair, sleepy seductive expression, soft morning sunlight",
+            "mood": "intimate, seductive, sleepy sensual",
+            "outfit": "loose silk sleepwear, oversized shirt, one shoulder exposed",
+        },
+        {
+            "name": "bath_towel",
+            "description": "목욕 후 장면",
+            "scene": "just finished bathing, wrapped in towel, wet hair dripping, steamy bathroom, flushed cheeks",
+            "mood": "sensual, steamy, vulnerable",
+            "outfit": "small bath towel wrapped around body, bare shoulders, wet skin",
+        },
+        {
+            "name": "swimsuit_pool",
+            "description": "수영장 장면",
+            "scene": "at a luxurious pool during sunset, posing in swimwear, water droplets on skin, confident pose",
+            "mood": "sexy, confident, summer",
+            "outfit": "stylish swimsuit, wet swimwear clinging to body",
+        },
+        {
+            "name": "workout_gym",
+            "description": "운동 후 장면",
+            "scene": "after workout at a gym, slightly sweaty, fit body, confident expression, gym background",
+            "mood": "athletic, confident, healthy sexy",
+            "outfit": "sports bra and leggings, athletic wear showing toned body",
+        },
+        {
+            "name": "party_dress",
+            "description": "파티 드레스 장면",
+            "scene": "at an elegant party venue, wearing stunning dress, sophisticated pose, champagne glass nearby",
+            "mood": "elegant, glamorous, alluring",
+            "outfit": "revealing evening dress with high slit, elegant jewelry, heels",
+        },
+    ]
+
+    # 이전에 사용하지 않은 이벤트 선택
+    available = [e for e in fallback_events if e["name"] not in previous_events]
+    if not available:
+        available = fallback_events
+
+    return random.choice(available)
 
 
 async def generate_special_event_image(
@@ -631,30 +809,29 @@ async def generate_special_event_image(
     style: str,
     art_style: str,
     character_design: dict | None = None,
-    event_type: str | None = None,
+    previous_events: list[str] | None = None,
     reference_image_url: str | None = None,
-) -> tuple[str, str]:
+) -> tuple[str, str, str]:
     """
-    특별 이벤트 전신 씬 이미지 생성
+    특별 이벤트 전신 씬 이미지 생성 (Gemini API로 동적 이벤트 생성)
 
     Args:
         gender: 캐릭터 성별 (male/female)
         style: 캐릭터 성격 (tsundere/cool/cute/sexy/pure)
         art_style: 그림체 (anime/realistic/watercolor)
         character_design: 캐릭터 디자인 (동일 캐릭터 유지)
-        event_type: 이벤트 타입 (None이면 랜덤 선택)
+        previous_events: 이전에 사용된 이벤트 이름 리스트 (중복 방지)
         reference_image_url: 참조할 캐릭터 이미지 URL (neutral 표정)
 
     Returns:
-        (이미지 URL, 이벤트 설명)
+        tuple: (이미지 URL, 이벤트 설명, 이벤트 이름)
     """
-    import random
-
-    # 이벤트 타입 선택
-    if event_type:
-        event = next((e for e in SPECIAL_EVENT_SCENES if e["name"] == event_type), None)
-    if not event_type or not event:
-        event = random.choice(SPECIAL_EVENT_SCENES)
+    # Gemini API로 동적 이벤트 생성 (이전 이벤트 제외)
+    event = await generate_dynamic_event_scene(
+        gender=gender,
+        style=style,
+        previous_events=previous_events,
+    )
 
     # 캐릭터 디자인
     design = character_design if character_design else get_character_design(gender, style)
@@ -670,8 +847,11 @@ async def generate_special_event_image(
     }
     art_prompt = art_style_prompts.get(art_style, art_style_prompts["anime"])
 
-    # 전신 이벤트 씬 프롬프트 (캐릭터 일관성 강조)
-    prompt = f"""Create a beautiful full-body special event illustration.
+    # 이벤트별 의상 (있으면 사용, 없으면 기본값)
+    event_outfit = event.get('outfit', 'elegant revealing outfit')
+
+    # 전신 이벤트 씬 프롬프트 (캐릭터 일관성 + 섹시한 연출)
+    prompt = f"""Create a beautiful full-body special event illustration with sensual appeal.
 
 CRITICAL - CHARACTER CONSISTENCY:
 This MUST be the EXACT SAME character with these SPECIFIC features:
@@ -680,31 +860,50 @@ This MUST be the EXACT SAME character with these SPECIFIC features:
 - Face: {design['features']}
 These features are NON-NEGOTIABLE and must match exactly.
 
-SUBJECT: An attractive {gender_word}
+SUBJECT: An attractive {gender_word}, slim fit body, beautiful figure
 The character must have IDENTICAL appearance to the reference - same face shape, same hairstyle, same eye color, same skin tone.
 
-SCENE: {event['scene']}
-MOOD: {event['mood']}
+SCENE DESCRIPTION: {event['scene']}
+MOOD/ATMOSPHERE: {event['mood']}
 
-OUTFIT: Elegant outfit suitable for the romantic scene (dress, formal wear, or date outfit)
+OUTFIT (IMPORTANT): {event_outfit}
+- Outfit should be form-fitting and revealing but tasteful
+- Show attractive body curves and silhouette
+- Emphasize sensual appeal while maintaining elegance
+
+POSE AND EXPRESSION:
+- Seductive yet elegant pose
+- Alluring eye contact with viewer
+- Slightly parted lips, flushed cheeks
+- Confident and inviting body language
+- Natural sensual expression
 
 COMPOSITION:
-- Full body shot showing the entire character from head to toe
+- Full body or 3/4 body shot showing figure
 - Character is the main focus, centered in frame
-- Beautiful scenic background matching the event theme
-- Cinematic composition with depth
-- Warm, romantic, emotional lighting
+- Beautiful background matching the event theme
+- Dramatic lighting that emphasizes body curves
+- Soft shadows and highlights on skin
 - High quality, detailed artwork
+- Cinematic composition
 
 ART STYLE: {art_prompt}
+
+SENSUAL ELEMENTS:
+- Emphasis on attractive body proportions
+- Beautiful skin rendering with subtle highlights
+- Delicate collarbone and shoulder details
+- Attractive leg silhouette if visible
+- Natural body curves emphasized
 
 ABSOLUTE REQUIREMENTS:
 - East Asian appearance (Korean/Japanese features)
 - SAME character as the reference - identical face, hair, eyes
-- Beautiful, emotionally engaging romantic scene
+- Sensual but tasteful (not explicit/pornographic)
+- Beautiful, alluring atmosphere
 - Single character only
 
-DO NOT include: text, watermarks, multiple characters, Western/Caucasian features, deformed anatomy, different character design"""
+DO NOT include: text, watermarks, multiple characters, Western/Caucasian features, deformed anatomy, different character design, explicit nudity, pornographic content"""
 
     # Imagen 모델 (4.0 -> 3.0 폴백)
     models_to_try = [
@@ -736,8 +935,8 @@ DO NOT include: text, watermarks, multiple characters, Western/Caucasian feature
                     if image_bytes and len(image_bytes) > 100:
                         with open(image_path, 'wb') as f:
                             f.write(image_bytes)
-                        print(f"Special event image generated successfully: {len(image_bytes)} bytes")
-                        return (f"/static/images/characters/{image_filename}", event['description'])
+                        print(f"Special event image generated successfully: {len(image_bytes)} bytes, event: {event['name']}")
+                        return (f"/static/images/characters/{image_filename}", event['description'], event['name'])
 
         except Exception as e:
             error_str = str(e)
@@ -748,7 +947,7 @@ DO NOT include: text, watermarks, multiple characters, Western/Caucasian feature
 
     # 실패 시 placeholder
     placeholder = f"https://placehold.co/1024x768/FF69B4/FFFFFF?text=Special+Event+{event['name']}"
-    return (placeholder, event['description'])
+    return (placeholder, event['description'], event['name'])
 
 
 # 캐릭터 스타일 설명 (한국어)
