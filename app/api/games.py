@@ -54,6 +54,9 @@ async def get_games(user_id: UUID, db: AsyncSession = Depends(get_db)):
                 mbti=s.character_setting.mbti,
                 art_style=s.character_setting.art_style,
             ) if s.character_setting else None,
+            is_stolen=s.is_stolen if hasattr(s, 'is_stolen') else False,
+            original_owner_id=s.original_owner_id if hasattr(s, 'original_owner_id') else None,
+            stolen_from_session_id=s.stolen_from_session_id if hasattr(s, 'stolen_from_session_id') else None,
         )
         for s in sessions
     ]

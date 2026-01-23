@@ -8,7 +8,7 @@ from pydantic import BaseModel
 
 from app.core.database import get_db
 from app.models import GameSession, Scene
-from app.models.game import CharacterExpression, SpecialEventImage
+from app.models.game import CharacterExpression, SpecialEventImage, CharacterSetting
 from app.models.user import User
 from app.schemas.game import SceneResponse, ChoiceResponse
 from app.services.gemini_service import (
@@ -34,6 +34,7 @@ class MinigameResultRequest(BaseModel):
     success: bool
     is_pvp: bool = False  # PvP 게임 여부
     bet_amount: int = 0   # PvP 베팅 금액
+    opponent_session_id: str | None = None  # PvP 상대방 세션 ID (캐릭터 뺏기용)
 
 
 class MinigameResultResponse(BaseModel):
@@ -41,6 +42,12 @@ class MinigameResultResponse(BaseModel):
     new_affection: int
     message: str
     show_event_scene: bool  # True only when minigame success
+    # 엔딩 관련
+    game_ended: bool = False
+    ending_type: str | None = None  # "happy_ending" or "sad_ending"
+    # 캐릭터 뺏김 관련 (PvP)
+    character_stolen: bool = False
+    stolen_character_id: str | None = None
 
 
 class SpecialImageResponse(BaseModel):
@@ -397,6 +404,71 @@ async def submit_minigame_result(
     new_affection = max(0, min(100, session.affection + affection_change))
     session.affection = new_affection
 
+    # 엔딩 조건 체크
+    game_ended = False
+    ending_type = None
+    character_stolen = False
+    stolen_character_id = None
+
+    if new_affection <= 0:
+        # Sad Ending
+        session.status = "sad_ending"
+        game_ended = True
+        ending_type = "sad_ending"
+        message = "호감도가 0이 되었습니다... 💔 Sad Ending"
+
+        # PvP에서 호감도 0이 되면 캐릭터 뺏김 처리
+        if request.is_pvp and request.opponent_session_id:
+            # 상대방 세션 조회
+            opponent_result = await db.execute(
+                select(GameSession).where(GameSession.id == UUID(request.opponent_session_id))
+            )
+            opponent_session = opponent_result.scalar_one_or_none()
+
+            if opponent_session:
+                # 현재 세션의 캐릭터 설정 조회
+                char_result = await db.execute(
+                    select(CharacterSetting).where(CharacterSetting.session_id == session_id)
+                )
+                original_char = char_result.scalar_one_or_none()
+
+                if original_char:
+                    # 새 게임 세션 생성 (뺏은 캐릭터용)
+                    new_session = GameSession(
+                        user_id=opponent_session.user_id,
+                        affection=30,  # 호감도 30으로 시작
+                        current_scene=1,
+                        status="playing",
+                        save_slot=0,  # 뺏은 캐릭터는 슬롯 0
+                        is_stolen=True,
+                        original_owner_id=session.user_id,
+                        stolen_from_session_id=session_id,
+                    )
+                    db.add(new_session)
+                    await db.flush()
+
+                    # 캐릭터 설정 복사
+                    new_char = CharacterSetting(
+                        session_id=new_session.id,
+                        gender=original_char.gender,
+                        style=original_char.style,
+                        mbti=original_char.mbti,
+                        art_style=original_char.art_style,
+                        character_design=original_char.character_design,
+                    )
+                    db.add(new_char)
+
+                    character_stolen = True
+                    stolen_character_id = str(new_session.id)
+                    message = "상대방의 캐릭터를 뺏었습니다! 🏆💕"
+
+    elif new_affection >= 100:
+        # Happy Ending
+        session.status = "happy_ending"
+        game_ended = True
+        ending_type = "happy_ending"
+        message = "호감도가 MAX! 💕🎉 Happy Ending!"
+
     await db.commit()
     await db.refresh(session)
 
@@ -404,5 +476,9 @@ async def submit_minigame_result(
         affection_change=affection_change,
         new_affection=new_affection,
         message=message,
-        show_event_scene=request.success,  # 승리 시에만 이벤트 씬 표시
+        show_event_scene=request.success and not game_ended,  # 엔딩 시에는 이벤트 씬 표시 안함
+        game_ended=game_ended,
+        ending_type=ending_type,
+        character_stolen=character_stolen,
+        stolen_character_id=stolen_character_id,
     )

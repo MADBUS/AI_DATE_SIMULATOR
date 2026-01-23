@@ -22,6 +22,10 @@ class GameSessionResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     character_settings: CharacterSettingResponse | None = None
+    # PvP 캐릭터 뺏기 관련
+    is_stolen: bool = False
+    original_owner_id: UUID | None = None
+    stolen_from_session_id: UUID | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
